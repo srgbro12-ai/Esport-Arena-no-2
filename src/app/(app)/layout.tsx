@@ -39,6 +39,7 @@ const navItems = [
   { href: '/store', icon: Store, label: 'Store' },
   { href: '/wallet', icon: Wallet, label: 'Wallet' },
   { href: '/messages', icon: MessageSquare, label: 'Messages' },
+  { href: '/studio', icon: Clapperboard, label: 'MyTube Studio' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -60,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href}
+                  isActive={pathname.startsWith(item.href)}
                   tooltip={{ children: item.label }}
                 >
                   <Link href={item.href}>
@@ -75,14 +76,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <SidebarFooter className="p-2">
            <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname.startsWith('/studio')} tooltip={{children: 'MyTube Studio'}}>
-                 <Link href="/studio">
-                  <Clapperboard className="icon-glow" />
-                  <span>MyTube Studio</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
              <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname.startsWith(`/channel`)} tooltip={{children: 'My Channel'}}>
                  <Link href={`/channel/${mockUser.username}`}>
