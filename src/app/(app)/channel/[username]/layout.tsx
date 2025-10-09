@@ -34,26 +34,6 @@ export default function ChannelLayout({ children }: { children: ReactNode }) {
     return (
         <div className="flex flex-col min-h-screen">
             <ChannelHeader />
-            <div className="sticky top-14 z-20 bg-background/95 backdrop-blur-sm border-b border-border mt-6">
-                <div className="px-4 md:px-8 overflow-x-auto">
-                    <nav className="flex items-center space-x-4 md:space-x-6 -mb-px">
-                        {TABS.map((tab) => (
-                            <Link
-                                key={tab.name}
-                                href={`/channel/${username}${tab.href}`}
-                                className={cn(
-                                    "py-3 px-1 border-b-2 whitespace-nowrap text-sm font-medium",
-                                    getIsActive(tab.href)
-                                        ? 'border-primary text-primary'
-                                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-foreground/50'
-                                )}
-                            >
-                                {tab.name}
-                            </Link>
-                        ))}
-                    </nav>
-                </div>
-            </div>
             <main className="flex-1 p-4 md:p-8">{children}</main>
         </div>
     );
