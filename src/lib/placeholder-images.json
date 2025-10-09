@@ -1,3 +1,70 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "user-avatar-1",
+      "description": "User avatar 1",
+      "imageUrl": "https://picsum.photos/seed/avatar1/128/128",
+      "imageHint": "profile portrait"
+    },
+    {
+      "id": "user-avatar-2",
+      "description": "User avatar 2",
+      "imageUrl": "https://picsum.photos/seed/avatar2/128/128",
+      "imageHint": "person smiling"
+    },
+    {
+      "id": "channel-banner-1",
+      "description": "Channel banner 1",
+      "imageUrl": "https://picsum.photos/seed/banner1/1080/240",
+      "imageHint": "abstract gaming"
+    },
+    {
+      "id": "game-cover-bgmi",
+      "description": "BGMI game cover",
+      "imageUrl": "https://picsum.photos/seed/bgmi/300/400",
+      "imageHint": "battle royale"
+    },
+    {
+      "id": "game-cover-cod",
+      "description": "COD game cover",
+      "imageUrl": "https://picsum.photos/seed/cod/300/400",
+      "imageHint": "modern warfare"
+    },
+    {
+      "id": "game-cover-freefire",
+      "description": "Free Fire game cover",
+      "imageUrl": "https://picsum.photos/seed/freefire/300/400",
+      "imageHint": "mobile shooter"
+    },
+    {
+      "id": "game-cover-custom",
+      "description": "Custom game cover",
+      "imageUrl": "https://picsum.photos/seed/customgame/300/400",
+      "imageHint": "esports logo"
+    },
+    {
+      "id": "store-item-digital-1",
+      "description": "Digital store item 1",
+      "imageUrl": "https://picsum.photos/seed/digital1/400/400",
+      "imageHint": "game skin"
+    },
+    {
+      "id": "store-item-physical-1",
+      "description": "Physical store item 1",
+      "imageUrl": "https://picsum.photos/seed/physical1/400/400",
+      "imageHint": "gaming headset"
+    },
+    {
+      "id": "video-thumbnail-1",
+      "description": "Video thumbnail 1",
+      "imageUrl": "https://picsum.photos/seed/vid1/640/360",
+      "imageHint": "gameplay highlights"
+    },
+    {
+      "id": "video-thumbnail-2",
+      "description": "Video thumbnail 2",
+      "imageUrl": "https://picsum.photos/seed/vid2/640/360",
+      "imageHint": "streaming setup"
+    }
+  ]
 }
