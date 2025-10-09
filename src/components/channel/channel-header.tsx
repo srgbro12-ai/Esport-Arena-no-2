@@ -30,18 +30,6 @@ export function ChannelHeader() {
 
   return (
     <div className="w-full">
-      <div className="relative h-40 md:h-60 bg-secondary">
-        {channelBannerUrl && (
-          <Image
-            src={channelBannerUrl}
-            alt={`${name}'s channel banner`}
-            layout="fill"
-            objectFit="cover"
-            className="w-full h-full"
-            data-ai-hint="abstract gaming"
-          />
-        )}
-      </div>
     </div>
   );
 }
