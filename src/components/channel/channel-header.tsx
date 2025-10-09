@@ -42,36 +42,6 @@ export function ChannelHeader() {
           />
         )}
       </div>
-
-      <div className="px-4 md:px-8 -mt-12 md:-mt-16 z-10 relative">
-        <div className="flex flex-col md:flex-row md:items-end gap-4">
-          <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-background">
-            {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
-            <AvatarFallback className="text-4xl">{name.charAt(0)}</AvatarFallback>
-          </Avatar>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl md:text-4xl font-headline font-bold truncate">{name}</h1>
-              {isVerified && <BadgeCheck className="w-6 h-6 text-primary" />}
-            </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-              <span>@{username}</span>
-              <span>{subscribers} subscribers</span>
-              <span>{videoCount} videos</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button>Subscribe</Button>
-            <Button variant="secondary">Join</Button>
-          </div>
-        </div>
-
-        <div className="mt-4 text-sm text-muted-foreground max-w-3xl whitespace-pre-wrap">
-          {linkifyDescription(description)}
-        </div>
-      </div>
     </div>
   );
 }
