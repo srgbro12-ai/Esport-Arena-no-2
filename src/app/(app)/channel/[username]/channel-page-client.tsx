@@ -357,8 +357,8 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
               <CardContent>
                   {myAllVideos.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {myAllVideos.map(video => (
-                              <div key={video.id}>
+                          {myAllVideos.map((video, index) => (
+                              <div key={`${video.id}-${index}`}>
                                 <VideoCard video={video} />
                                 {isYouPage && (
                                     <Link href="/studio/promotions" className="w-full">
