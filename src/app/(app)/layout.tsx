@@ -14,6 +14,7 @@ import {
   SidebarFooter,
   SidebarInset,
   SidebarTrigger,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import {
   Trophy,
@@ -26,66 +27,160 @@ import {
   User,
   Settings,
   LifeBuoy,
+  LayoutDashboard,
+  Library,
+  Users,
+  Captions,
+  Copyright,
+  DollarSign,
+  Wand2,
+  Music,
+  Rocket,
+  MessageCircleQuestion,
 } from 'lucide-react';
 import { AppHeader } from '@/components/app-header';
 import { mockUser } from '@/lib/mock-data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
-const navItems = [
+const studioNavItems = [
+  { href: '/studio/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/studio/content', icon: Library, label: 'Content' },
+  { href: '/studio/analytics', icon: BarChart3, label: 'Analytics' },
+  { href: '/studio/community', icon: Users, label: 'Community' },
+  { href: '/studio/subtitles', icon: Captions, label: 'Subtitles' },
+  { href: '/studio/copyright', icon: Copyright, label: 'Copyright' },
+  { href: '/studio/earn', icon: DollarSign, label: 'Earn' },
+  { href: '/studio/customization', icon: Wand2, label: 'Customization' },
+  { href: '/studio/audio-library', icon: Music, label: 'Audio library' },
+  { href: '/studio/promotions', icon: Rocket, label: 'Promotions' },
+];
+
+const mainNavItems = [
   { href: '/home', icon: Home, label: 'Home' },
   { href: '/tournaments', icon: Trophy, label: 'Tournaments' },
   { href: '/leaderboard', icon: BarChart3, label: 'Leaderboard' },
   { href: '/store', icon: Store, label: 'Store' },
   { href: '/wallet', icon: Wallet, label: 'Wallet' },
   { href: '/messages', icon: MessageSquare, label: 'Messages' },
-  { href: '/studio', icon: Clapperboard, label: 'MyTube Studio' },
 ];
+
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isStudioPage = pathname.startsWith('/studio');
+
+  const sidebarContent = isStudioPage ? (
+    <>
+      <SidebarHeader className="p-4">
+        <Link href={`/channel/${mockUser.username}`} className="flex flex-col items-center text-center gap-2 w-full">
+          <Avatar className="w-16 h-16 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 transition-all">
+            <AvatarImage src={mockUser.avatarUrl} alt={mockUser.name} />
+            <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <div className="group-data-[collapsible=icon]:hidden">
+            <p className="font-semibold">Your Channel</p>
+            <p className="text-xs text-muted-foreground">{mockUser.name}</p>
+          </div>
+        </Link>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarMenu>
+          {studioNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith(item.href)}
+                tooltip={{ children: item.label }}
+              >
+                <Link href={item.href}>
+                  <item.icon className="icon-glow" />
+                  <span>{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+      <SidebarFooter className="p-2">
+        <SidebarSeparator />
+        <SidebarMenu>
+           <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={{children: 'Settings'}}>
+              <Link href="/studio/settings">
+                <Settings className="icon-glow" />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={{children: 'Send feedback'}}>
+              <Link href="/feedback">
+                <MessageCircleQuestion className="icon-glow" />
+                <span>Send feedback</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </>
+  ) : (
+    <>
+      <SidebarHeader className="items-center justify-center p-4">
+        <Trophy className="size-8 text-primary icon-glow transition-all group-data-[collapsible=icon]:size-6" />
+        <h1 className="font-headline text-2xl font-bold text-glow transition-opacity group-data-[collapsible=icon]:opacity-0">
+          Esport Arena
+        </h1>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarMenu>
+          {mainNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith(item.href)}
+                tooltip={{ children: item.label }}
+              >
+                <Link href={item.href}>
+                  <item.icon className="icon-glow" />
+                  <span>{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+           <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith('/studio')}
+                tooltip={{ children: 'MyTube Studio' }}
+              >
+                <Link href="/studio/dashboard">
+                  <Clapperboard className="icon-glow" />
+                  <span>MyTube Studio</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarContent>
+      <SidebarFooter className="p-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname.startsWith(`/channel`)} tooltip={{children: 'My Channel'}}>
+                <Link href={`/channel/${mockUser.username}`}>
+                <User className="icon-glow" />
+                <span>My Channel</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </>
+  );
 
   return (
     <SidebarProvider>
       <Sidebar side="left" variant="sidebar" collapsible="icon">
-        <SidebarHeader className="items-center justify-center p-4">
-          <Trophy className="size-8 text-primary icon-glow transition-all group-data-[collapsible=icon]:size-6" />
-          <h1 className="font-headline text-2xl font-bold text-glow transition-opacity group-data-[collapsible=icon]:opacity-0">
-            Esport Arena
-          </h1>
-        </SidebarHeader>
-
-        <SidebarContent>
-          <SidebarMenu>
-            {navItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith(item.href)}
-                  tooltip={{ children: item.label }}
-                >
-                  <Link href={item.href}>
-                    <item.icon className="icon-glow" />
-                    <span>{item.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarContent>
-
-        <SidebarFooter className="p-2">
-           <SidebarMenu>
-             <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname.startsWith(`/channel`)} tooltip={{children: 'My Channel'}}>
-                 <Link href={`/channel/${mockUser.username}`}>
-                  <User className="icon-glow" />
-                  <span>My Channel</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
+        {sidebarContent}
       </Sidebar>
 
       <div className="flex flex-1 flex-col">
