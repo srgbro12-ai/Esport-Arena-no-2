@@ -110,6 +110,10 @@ export default function LoginPage() {
         toast({ title: "Successfully signed in with Google!" });
       }
     } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        // User closed the popup, so we don't need to show an error.
+        return;
+      }
       console.error(error);
       let description = error.message;
       if (error.code === 'auth/operation-not-allowed') {
