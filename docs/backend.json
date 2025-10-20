@@ -653,7 +653,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {
@@ -942,3 +943,4 @@
     "reasoning": "The Firestore structure is designed to ensure security, scalability, and debuggability, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User-owned data is stored in hierarchical paths under the `/users/{userId}` collection, ensuring clear ownership. Collaborative data utilizes membership maps for authorization. Denormalization is extensively used to avoid `get()` calls in security rules, enabling atomic operations and simplifying security logic.\n\nSpecifically:\n\n*   **User Profiles & Related Data:** User profiles and their associated wallets, channels, delivery addresses, and orders are nested under `/users/{userId}`. This establishes clear ownership and simplifies security rules. The Wallet, Channel, DeliveryAddress and Order documents store the userId for authorization independence.\n*   **Tournaments and Matches:** Tournaments are stored in a top-level `/tournaments` collection. Matches associated with each tournament are stored in a subcollection `/tournaments/{tournamentId}/matches`. Participant documents contain the denormalized tournamentId.\n*   **Store Items:** Store items are placed in a top-level `/store_items` collection, assuming global availability and consistent access control.\n*   **Chat and Friendship:** Chat messages are stored in a `/chat_messages` collection, enabling direct messaging between users.  Friendships are stored in a `/friendships` collection.\n*   **Leaderboards:** Leaderboards are stored in a top-level `/leaderboards` collection. Leaderboard entries are stored in a subcollection `/leaderboards/{leaderboardId}/entries`.\n*   **Notifications:** Notifications are stored in a `/users/{userId}/notifications` collection. This ensures that only the user can access their notifications.\n\nThis structure facilitates QAPs by:\n\n*   **Segregation:** Separating user-owned data from global data (e.g., store items, tournaments) allows for distinct security rules.\n*   **Membership Maps/Ownership:** Using path-based ownership (`/users/{userId}`) and denormalized `userId` attributes allows for secure listing of resources."
   }
 }
+    
