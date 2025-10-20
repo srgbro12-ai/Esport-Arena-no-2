@@ -1,0 +1,944 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user profile in the Esport Arena application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user profile."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's chosen username."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The user's phone number."
+        },
+        "referralCode": {
+          "type": "string",
+          "description": "The user's referral code."
+        },
+        "profilePicture": {
+          "type": "string",
+          "description": "URL to the user's profile picture.",
+          "format": "uri"
+        },
+        "joinDate": {
+          "type": "string",
+          "description": "Date and time when the user joined the platform.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email"
+      ]
+    },
+    "Wallet": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Wallet",
+      "type": "object",
+      "description": "Represents a user's wallet in the application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the wallet."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 Wallet)"
+        },
+        "balance": {
+          "type": "number",
+          "description": "The current balance in the wallet."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency of the wallet."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "balance",
+        "currency"
+      ]
+    },
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Represents a transaction in the wallet.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction."
+        },
+        "walletId": {
+          "type": "string",
+          "description": "Reference to Wallet. (Relationship: Wallet 1:N Transaction)"
+        },
+        "transactionType": {
+          "type": "string",
+          "description": "The type of transaction (e.g., deposit, withdrawal)."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the transaction."
+        },
+        "transactionDate": {
+          "type": "string",
+          "description": "The date and time of the transaction.",
+          "format": "date-time"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "The payment method used for the transaction."
+        },
+        "transactionStatus": {
+          "type": "string",
+          "description": "The status of the transaction (e.g., pending, completed, failed)."
+        }
+      },
+      "required": [
+        "id",
+        "walletId",
+        "transactionType",
+        "amount",
+        "transactionDate",
+        "paymentMethod",
+        "transactionStatus"
+      ]
+    },
+    "Tournament": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tournament",
+      "type": "object",
+      "description": "Represents a tournament in the Esport Arena.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the tournament."
+        },
+        "game": {
+          "type": "string",
+          "description": "The game being played in the tournament (e.g., Free Fire, PUBG)."
+        },
+        "mode": {
+          "type": "string",
+          "description": "The game mode (e.g., Solo, Duo, Squad)."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The start time of the tournament.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The end time of the tournament.",
+          "format": "date-time"
+        },
+        "prizePool": {
+          "type": "number",
+          "description": "The prize pool for the tournament."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the tournament."
+        }
+      },
+      "required": [
+        "id",
+        "game",
+        "mode",
+        "startTime",
+        "endTime",
+        "prizePool"
+      ]
+    },
+    "Match": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Match",
+      "type": "object",
+      "description": "Represents a match within a tournament.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the match."
+        },
+        "tournamentId": {
+          "type": "string",
+          "description": "Reference to Tournament. (Relationship: Tournament 1:N Match)"
+        },
+        "matchTime": {
+          "type": "string",
+          "description": "The time of the match.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the match (e.g., upcoming, live, completed)."
+        }
+      },
+      "required": [
+        "id",
+        "tournamentId",
+        "matchTime",
+        "status"
+      ]
+    },
+    "Participant": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Participant",
+      "type": "object",
+      "description": "Represents a participant in a tournament.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the participant."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Participant)"
+        },
+        "tournamentId": {
+          "type": "string",
+          "description": "Reference to Tournament. (Relationship: Tournament 1:N Participant)"
+        },
+        "teamName": {
+          "type": "string",
+          "description": "The name of the team (if applicable)."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "tournamentId"
+      ]
+    },
+    "Channel": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Channel",
+      "type": "object",
+      "description": "Represents a user's channel.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the channel."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 Channel)"
+        },
+        "bannerUrl": {
+          "type": "string",
+          "description": "URL to the channel banner.",
+          "format": "uri"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL to the channel avatar.",
+          "format": "uri"
+        },
+        "channelDescription": {
+          "type": "string",
+          "description": "Description of the channel."
+        },
+        "instagramLink": {
+          "type": "string",
+          "description": "Link to the channel's Instagram profile.",
+          "format": "uri"
+        },
+        "subscriberCount": {
+          "type": "number",
+          "description": "Number of subscribers the channel has."
+        },
+        "videoCount": {
+          "type": "number",
+          "description": "Number of videos uploaded to the channel."
+        },
+        "verificationBadge": {
+          "type": "boolean",
+          "description": "Indicates if the channel has a verification badge."
+        }
+      },
+      "required": [
+        "id",
+        "userId"
+      ]
+    },
+    "Video": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Video",
+      "type": "object",
+      "description": "Represents a video uploaded to a channel.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the video."
+        },
+        "channelId": {
+          "type": "string",
+          "description": "Reference to Channel. (Relationship: Channel 1:N Video)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the video."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the video."
+        },
+        "uploadDate": {
+          "type": "string",
+          "description": "Date and time the video was uploaded.",
+          "format": "date-time"
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "URL to the video file.",
+          "format": "uri"
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "description": "URL to the video thumbnail.",
+          "format": "uri"
+        },
+        "viewCount": {
+          "type": "number",
+          "description": "Number of views the video has."
+        },
+        "likeCount": {
+          "type": "number",
+          "description": "Number of likes the video has."
+        }
+      },
+      "required": [
+        "id",
+        "channelId",
+        "title",
+        "uploadDate",
+        "videoUrl",
+        "thumbnailUrl"
+      ]
+    },
+    "StoreItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StoreItem",
+      "type": "object",
+      "description": "Represents an item in the in-app store.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the store item."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the store item."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the store item."
+        },
+        "itemType": {
+          "type": "string",
+          "description": "Type of the item (e.g., digital, physical)."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price of the item."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL to the item's image.",
+          "format": "uri"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the item available in stock."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "itemType",
+        "price",
+        "imageUrl"
+      ]
+    },
+    "DeliveryAddress": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DeliveryAddress",
+      "type": "object",
+      "description": "Represents a delivery address for physical store items.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the delivery address."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N DeliveryAddress)"
+        },
+        "addressLine1": {
+          "type": "string",
+          "description": "Address line 1."
+        },
+        "addressLine2": {
+          "type": "string",
+          "description": "Address line 2."
+        },
+        "city": {
+          "type": "string",
+          "description": "City."
+        },
+        "state": {
+          "type": "string",
+          "description": "State."
+        },
+        "zipCode": {
+          "type": "string",
+          "description": "Zip code."
+        },
+        "country": {
+          "type": "string",
+          "description": "Country."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "addressLine1",
+        "city",
+        "state",
+        "zipCode",
+        "country"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents an order placed in the in-app store.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Order)"
+        },
+        "storeItemId": {
+          "type": "string",
+          "description": "Reference to StoreItem. (Relationship: StoreItem 1:N Order)"
+        },
+        "deliveryAddressId": {
+          "type": "string",
+          "description": "Reference to DeliveryAddress. (Relationship: DeliveryAddress 1:N Order)"
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Date and time the order was placed.",
+          "format": "date-time"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the item ordered."
+        },
+        "orderStatus": {
+          "type": "string",
+          "description": "Status of the order (e.g., pending, processing, shipped, delivered)."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "storeItemId",
+        "orderDate",
+        "quantity",
+        "orderStatus"
+      ]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents a chat message between users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the chat message."
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Reference to UserProfile of the sender."
+        },
+        "receiverId": {
+          "type": "string",
+          "description": "Reference to UserProfile of the receiver."
+        },
+        "messageText": {
+          "type": "string",
+          "description": "The text content of the message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The date and time the message was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "senderId",
+        "receiverId",
+        "messageText",
+        "timestamp"
+      ]
+    },
+    "Friendship": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Friendship",
+      "type": "object",
+      "description": "Represents a friendship relationship between two users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the friendship."
+        },
+        "user1Id": {
+          "type": "string",
+          "description": "Reference to UserProfile of the first user."
+        },
+        "user2Id": {
+          "type": "string",
+          "description": "Reference to UserProfile of the second user."
+        },
+        "friendshipStatus": {
+          "type": "string",
+          "description": "Status of the friendship (e.g., pending, accepted, rejected)."
+        },
+        "friendshipDate": {
+          "type": "string",
+          "description": "Date and time the friendship was established.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "user1Id",
+        "user2Id",
+        "friendshipStatus"
+      ]
+    },
+    "Leaderboard": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Leaderboard",
+      "type": "object",
+      "description": "Represents a leaderboard for a specific esport title.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the leaderboard."
+        },
+        "game": {
+          "type": "string",
+          "description": "The esport title (e.g., Free Fire, PUBG/BGMI, COD)."
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date for the leaderboard tracking period.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "The end date for the leaderboard tracking period.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "game",
+        "startDate",
+        "endDate"
+      ]
+    },
+    "LeaderboardEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaderboardEntry",
+      "type": "object",
+      "description": "Represents an entry in the leaderboard for a player or team.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the leaderboard entry."
+        },
+        "leaderboardId": {
+          "type": "string",
+          "description": "Reference to Leaderboard. (Relationship: Leaderboard 1:N LeaderboardEntry)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N LeaderboardEntry)"
+        },
+        "rank": {
+          "type": "number",
+          "description": "The rank of the player or team on the leaderboard."
+        },
+        "score": {
+          "type": "number",
+          "description": "The score of the player or team on the leaderboard."
+        }
+      },
+      "required": [
+        "id",
+        "leaderboardId",
+        "userId",
+        "rank",
+        "score"
+      ]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a notification to a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the notification."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Notification)"
+        },
+        "notificationType": {
+          "type": "string",
+          "description": "The type of notification (e.g., tournament, friend request, update)."
+        },
+        "message": {
+          "type": "string",
+          "description": "The message of the notification."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The date and time the notification was sent.",
+          "format": "date-time"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Indicates if the notification has been read by the user."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "notificationType",
+        "message",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information. The userId is used for path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/wallet",
+        "definition": {
+          "entityName": "Wallet",
+          "schema": {
+            "$ref": "#/backend/entities/Wallet"
+          },
+          "description": "Stores wallet information for a user. Includes denormalized 'userId' for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/wallet/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "schema": {
+            "$ref": "#/backend/entities/Transaction"
+          },
+          "description": "Stores transaction history for a user's wallet. Includes denormalized 'userId' from the parent 'wallet' document for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "transactionId",
+              "description": "The unique identifier for the transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/tournaments/{tournamentId}",
+        "definition": {
+          "entityName": "Tournament",
+          "schema": {
+            "$ref": "#/backend/entities/Tournament"
+          },
+          "description": "Stores tournament information.",
+          "params": [
+            {
+              "name": "tournamentId",
+              "description": "The unique identifier for the tournament."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/tournaments/{tournamentId}/matches/{matchId}",
+        "definition": {
+          "entityName": "Match",
+          "schema": {
+            "$ref": "#/backend/entities/Match"
+          },
+          "description": "Stores match information for a specific tournament. Includes denormalized 'tournamentId' for authorization independence.",
+          "params": [
+            {
+              "name": "tournamentId",
+              "description": "The unique identifier for the tournament."
+            },
+            {
+              "name": "matchId",
+              "description": "The unique identifier for the match."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/participants/{participantId}",
+        "definition": {
+          "entityName": "Participant",
+          "schema": {
+            "$ref": "#/backend/entities/Participant"
+          },
+          "description": "Stores participant information. Includes denormalized 'userId' and 'tournamentId'.",
+          "params": [
+            {
+              "name": "participantId",
+              "description": "The unique identifier for the participant."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/channel",
+        "definition": {
+          "entityName": "Channel",
+          "schema": {
+            "$ref": "#/backend/entities/Channel"
+          },
+          "description": "Stores channel information for a user. Includes denormalized 'userId' for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/channel/videos/{videoId}",
+        "definition": {
+          "entityName": "Video",
+          "schema": {
+            "$ref": "#/backend/entities/Video"
+          },
+          "description": "Stores video information for a channel. Includes denormalized 'userId' from the parent 'channel' document for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "videoId",
+              "description": "The unique identifier for the video."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/store_items/{storeItemId}",
+        "definition": {
+          "entityName": "StoreItem",
+          "schema": {
+            "$ref": "#/backend/entities/StoreItem"
+          },
+          "description": "Stores store item information.",
+          "params": [
+            {
+              "name": "storeItemId",
+              "description": "The unique identifier for the store item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/delivery_addresses/{deliveryAddressId}",
+        "definition": {
+          "entityName": "DeliveryAddress",
+          "schema": {
+            "$ref": "#/backend/entities/DeliveryAddress"
+          },
+          "description": "Stores delivery addresses for a user. Includes denormalized 'userId' for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "deliveryAddressId",
+              "description": "The unique identifier for the delivery address."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores order information. Includes denormalized 'userId' for authorization independence.  Orders are top-level to allow global querying (e.g., for admin).",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "The unique identifier for the order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/chat_messages/{chatMessageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Stores chat messages between users.",
+          "params": [
+            {
+              "name": "chatMessageId",
+              "description": "The unique identifier for the chat message."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/friendships/{friendshipId}",
+        "definition": {
+          "entityName": "Friendship",
+          "schema": {
+            "$ref": "#/backend/entities/Friendship"
+          },
+          "description": "Stores friendship relationships between users.",
+          "params": [
+            {
+              "name": "friendshipId",
+              "description": "The unique identifier for the friendship."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leaderboards/{leaderboardId}",
+        "definition": {
+          "entityName": "Leaderboard",
+          "schema": {
+            "$ref": "#/backend/entities/Leaderboard"
+          },
+          "description": "Stores leaderboard information.",
+          "params": [
+            {
+              "name": "leaderboardId",
+              "description": "The unique identifier for the leaderboard."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leaderboards/{leaderboardId}/entries/{leaderboardEntryId}",
+        "definition": {
+          "entityName": "LeaderboardEntry",
+          "schema": {
+            "$ref": "#/backend/entities/LeaderboardEntry"
+          },
+          "description": "Stores leaderboard entries for a specific leaderboard. Includes denormalized 'leaderboardId' for authorization independence.",
+          "params": [
+            {
+              "name": "leaderboardId",
+              "description": "The unique identifier for the leaderboard."
+            },
+            {
+              "name": "leaderboardEntryId",
+              "description": "The unique identifier for the leaderboard entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/notifications/{notificationId}",
+        "definition": {
+          "entityName": "Notification",
+          "schema": {
+            "$ref": "#/backend/entities/Notification"
+          },
+          "description": "Stores notifications for a user. The userId is used for path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "notificationId",
+              "description": "The unique identifier for the notification."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure security, scalability, and debuggability, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User-owned data is stored in hierarchical paths under the `/users/{userId}` collection, ensuring clear ownership. Collaborative data utilizes membership maps for authorization. Denormalization is extensively used to avoid `get()` calls in security rules, enabling atomic operations and simplifying security logic.\n\nSpecifically:\n\n*   **User Profiles & Related Data:** User profiles and their associated wallets, channels, delivery addresses, and orders are nested under `/users/{userId}`. This establishes clear ownership and simplifies security rules. The Wallet, Channel, DeliveryAddress and Order documents store the userId for authorization independence.\n*   **Tournaments and Matches:** Tournaments are stored in a top-level `/tournaments` collection. Matches associated with each tournament are stored in a subcollection `/tournaments/{tournamentId}/matches`. Participant documents contain the denormalized tournamentId.\n*   **Store Items:** Store items are placed in a top-level `/store_items` collection, assuming global availability and consistent access control.\n*   **Chat and Friendship:** Chat messages are stored in a `/chat_messages` collection, enabling direct messaging between users.  Friendships are stored in a `/friendships` collection.\n*   **Leaderboards:** Leaderboards are stored in a top-level `/leaderboards` collection. Leaderboard entries are stored in a subcollection `/leaderboards/{leaderboardId}/entries`.\n*   **Notifications:** Notifications are stored in a `/users/{userId}/notifications` collection. This ensures that only the user can access their notifications.\n\nThis structure facilitates QAPs by:\n\n*   **Segregation:** Separating user-owned data from global data (e.g., store items, tournaments) allows for distinct security rules.\n*   **Membership Maps/Ownership:** Using path-based ownership (`/users/{userId}`) and denormalized `userId` attributes allows for secure listing of resources."
+  }
+}

@@ -1,0 +1,361 @@
+/**
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for personal data,
+ *              while allowing public read access to certain collections like tournaments and store items.
+ *              It leverages denormalization to avoid costly `get()` calls and maintains clear data segregation
+ *              between user-specific and global content.
+ *
+ * Data Structure:
+ * - /users/{userId}: User profiles and associated data.
+ * - /tournaments/{tournamentId}: Tournament information.
+ * - /store_items/{storeItemId}: Store item information.
+ * - /orders/{orderId}: Order information.
+ * - /chat_messages/{chatMessageId}: Chat messages between users.
+ * - /friendships/{friendshipId}: Friendship relationships between users.
+ * - /leaderboards/{leaderboardId}: Leaderboard information.
+ *
+ * Key Security Decisions:
+ * - User-owned data is strictly controlled via path-based ownership.
+ * - Public read access is enabled for tournaments and store items.
+ * - Denormalized fields are used extensively to avoid extra reads for authorization.
+ * - Listing user data is generally allowed only to the owner.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Manages access to user profile information.  Users can only read/write their own profile.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user_abc' can create their profile at /users/user_abc.
+     * @allow (get, update, delete) User with ID 'user_abc' can read/update/delete their profile at /users/user_abc.
+     * @deny (create) User with ID 'user_xyz' cannot create a profile at /users/user_abc.
+     * @deny (get, update, delete) User with ID 'user_xyz' cannot read/update/delete the profile at /users/user_abc.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId} {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages access to user wallet information. Users can only read/write their own wallet.
+     * @path /users/{userId}/wallet
+     * @allow (create) User with ID 'user_abc' can create their wallet at /users/user_abc/wallet.
+     * @allow (get, update, delete) User with ID 'user_abc' can read/update/delete their wallet at /users/user_abc/wallet.
+     * @deny (create) User with ID 'user_xyz' cannot create a wallet at /users/user_abc/wallet.
+     * @deny (get, update, delete) User with ID 'user_xyz' cannot read/update/delete the wallet at /users/user_abc/wallet.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/wallet {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages access to user transaction information. Users can only read/write their own transactions.
+     * @path /users/{userId}/wallet/transactions/{transactionId}
+     * @allow (create) User with ID 'user_abc' can create a transaction at /users/user_abc/wallet/transactions/trans_123.
+     * @allow (get, update, delete) User with ID 'user_abc' can read/update/delete their transaction at /users/user_abc/wallet/transactions/trans_123.
+     * @deny (create) User with ID 'user_xyz' cannot create a transaction at /users/user_abc/wallet/transactions/trans_123.
+     * @deny (get, update, delete) User with ID 'user_xyz' cannot read/update/delete the transaction at /users/user_abc/wallet/transactions/trans_123.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/wallet/transactions/{transactionId} {
+      allow get: if isSignedIn() && isWalletOwner(userId, parent_walletId());
+      allow list: if isWalletOwner(userId, parent_walletId());
+      allow create: if isSignedIn() && isWalletOwner(userId, parent_walletId());
+      allow update: if isSignedIn() && isExistingTransactionOwner(userId, parent_walletId());
+      allow delete: if isSignedIn() && isExistingTransactionOwner(userId, parent_walletId());
+    }
+
+    /**
+     * @description Manages access to tournament information. All users can read tournament information.
+     * @path /tournaments/{tournamentId}
+     * @allow (get, list) Any user can get/list tournaments.
+     * @deny (create, update, delete) Only authenticated users with the 'admin' role can create/update/delete tournaments.  No admin role exists, so deny all.
+     * @principle Allows public read access but restricts write access.
+     */
+    match /tournaments/{tournamentId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add admin role check once roles are defined.
+    }
+
+    /**
+     * @description Manages access to match information. All users can read match information.
+     * @path /tournaments/{tournamentId}/matches/{matchId}
+     * @allow (get, list) Any user can get/list matches.
+     * @deny (create, update, delete) Only authenticated users with the 'admin' role can create/update/delete matches. No admin role exists, so deny all.
+     * @principle Allows public read access but restricts write access.
+     */
+    match /tournaments/{tournamentId}/matches/{matchId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add admin role check once roles are defined.
+    }
+
+    /**
+     * @description Manages access to participant information.
+     * @path /participants/{participantId}
+     * @allow (create) Any signed-in user can create a participant entry.
+     * @allow (get) Any signed-in user can read a participant entry.
+     * @allow (list) Any signed-in user can list participant entries.
+     * @deny (update, delete) No user can update/delete a participant entry.
+     * @principle Requires user authentication for all operations.
+     */
+    match /participants/{participantId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if false;
+    }
+
+    /**
+     * @description Manages access to user channel information. Users can only read/write their own channel.
+     * @path /users/{userId}/channel
+     * @allow (create) User with ID 'user_abc' can create their channel at /users/user_abc/channel.
+     * @allow (get, update, delete) User with ID 'user_abc' can read/update/delete their channel at /users/user_abc/channel.
+     * @deny (create) User with ID 'user_xyz' cannot create a channel at /users/user_abc/channel.
+     * @deny (get, update, delete) User with ID 'user_xyz' cannot read/update/delete the channel at /users/user_abc/channel.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/channel {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages access to video information. Users can only read/write their own videos.
+     * @path /users/{userId}/channel/videos/{videoId}
+     * @allow (create) User with ID 'user_abc' can create a video at /users/user_abc/channel/videos/video_123.
+     * @allow (get, update, delete) User with ID 'user_abc' can read/update/delete their video at /users/user_abc/channel/videos/video_123.
+     * @deny (create) User with ID 'user_xyz' cannot create a video at /users/user_abc/channel/videos/video_123.
+     * @deny (get, update, delete) User with ID 'user_xyz' cannot read/update/delete the video at /users/user_abc/channel/videos/video_123.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/channel/videos/{videoId} {
+      allow get: if isSignedIn() && isChannelOwner(userId, parent_channelId());
+      allow list: if isChannelOwner(userId, parent_channelId());
+      allow create: if isSignedIn() && isChannelOwner(userId, parent_channelId());
+      allow update: if isSignedIn() && isExistingVideoOwner(userId, parent_channelId());
+      allow delete: if isSignedIn() && isExistingVideoOwner(userId, parent_channelId());
+    }
+
+    /**
+     * @description Manages access to store item information. All users can read store item information.
+     * @path /store_items/{storeItemId}
+     * @allow (get, list) Any user can get/list store items.
+     * @deny (create, update, delete) Only authenticated users with the 'admin' role can create/update/delete store items.  No admin role exists, so deny all.
+     * @principle Allows public read access but restricts write access.
+     */
+    match /store_items/{storeItemId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add admin role check once roles are defined.
+    }
+
+    /**
+     * @description Manages access to user delivery address information. Users can only read/write their own delivery addresses.
+     * @path /users/{userId}/delivery_addresses/{deliveryAddressId}
+     * @allow (create) User with ID 'user_abc' can create their delivery address at /users/user_abc/delivery_addresses/address_123.
+     * @allow (get, update, delete) User with ID 'user_abc' can read/update/delete their delivery address at /users/user_abc/delivery_addresses/address_123.
+     * @deny (create) User with ID 'user_xyz' cannot create a delivery address at /users/user_abc/delivery_addresses/address_123.
+     * @deny (get, update, delete) User with ID 'user_xyz' cannot read/update/delete the delivery address at /users/user_abc/delivery_addresses/address_123.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/delivery_addresses/{deliveryAddressId} {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages access to order information.
+     * @path /orders/{orderId}
+     * @allow (get) Any signed-in user can read order information.
+     * @allow (create) Any signed-in user can create a new order. The user's ID must match the order's userId.
+     * @allow (list) Any signed-in user can list orders.
+     * @deny (update, delete) No user can update or delete an order.
+     * @principle Requires user authentication for all operations.
+     */
+    match /orders/{orderId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+    }
+
+    /**
+     * @description Manages access to chat message information.
+     * @path /chat_messages/{chatMessageId}
+     * @allow (create) Any signed-in user can create a chat message.
+     * @allow (get) Any signed-in user can read a chat message.
+     * @allow (list) Any signed-in user can list chat messages.
+     * @deny (update, delete) No user can update or delete a chat message.
+     * @principle Requires user authentication for all operations.
+     */
+    match /chat_messages/{chatMessageId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if false;
+    }
+
+    /**
+     * @description Manages access to friendship information.
+     * @path /friendships/{friendshipId}
+     * @allow (create) Any signed-in user can create a friendship.
+     * @allow (get) Any signed-in user can read a friendship.
+     * @allow (list) Any signed-in user can list friendships.
+     * @deny (update, delete) No user can update or delete a friendship.
+     * @principle Requires user authentication for all operations.
+     */
+    match /friendships/{friendshipId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if false;
+    }
+
+    /**
+     * @description Manages access to leaderboard information. All users can read leaderboard information.
+     * @path /leaderboards/{leaderboardId}
+     * @allow (get, list) Any user can get/list leaderboards.
+     * @deny (create, update, delete) Only authenticated users with the 'admin' role can create/update/delete leaderboards.  No admin role exists, so deny all.
+     * @principle Allows public read access but restricts write access.
+     */
+    match /leaderboards/{leaderboardId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add admin role check once roles are defined.
+    }
+
+    /**
+     * @description Manages access to leaderboard entry information.
+     * @path /leaderboards/{leaderboardId}/entries/{leaderboardEntryId}
+     * @allow (create) Any signed-in user can create a leaderboard entry.
+     * @allow (get) Any signed-in user can read a leaderboard entry.
+     * @allow (list) Any signed-in user can list leaderboard entries.
+     * @deny (update, delete) No user can update or delete a leaderboard entry.
+     * @principle Requires user authentication for all operations.
+     */
+    match /leaderboards/{leaderboardId}/entries/{leaderboardEntryId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if false;
+    }
+
+    /**
+     * @description Manages access to user notification information.  Users can only read/write their own notifications.
+     * @path /users/{userId}/notifications/{notificationId}
+     * @allow (create) User with ID 'user_abc' can create a notification at /users/user_abc/notifications/notif_123.
+     * @allow (get, update, delete) User with ID 'user_abc' can read/update/delete their notification at /users/user_abc/notifications/notif_123.
+     * @deny (create) User with ID 'user_xyz' cannot create a notification at /users/user_abc/notifications/notif_123.
+     * @deny (get, update, delete) User with ID 'user_xyz' cannot read/update/delete the notification at /users/user_abc/notifications/notif_123.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/notifications/{notificationId} {
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    // --- Helper Functions ---
+
+    /**
+     * @description Checks if the user is signed in.
+     * @return True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the user is the owner of the resource based on the userId.
+     * @param {string} userId - The user ID to compare against the request's auth UID.
+     * @return True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the user is the owner of the resource and the resource exists.
+     * @param {string} userId - The user ID to compare against the request's auth UID.
+     * @return True if the user is the owner and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Retrieves the parent walletId from the path.
+     * @return The walletId string.
+     */
+    function parent_walletId() {
+        return get(/databases/$(database)/documents/users/$(userId())/wallet).data.id;
+    }
+
+    /**
+     * @description Checks if the user owns the wallet.
+     * @param {string} userId - The ID of the user.
+     * @param {string} walletId - The ID of the wallet.
+     * @return True if the wallet is owned by the user, false otherwise.
+     */
+    function isWalletOwner(userId, walletId) {
+        return isSignedIn() && exists(/databases/$(database)/documents/users/$(userId)/wallet) && get(/databases/$(database)/documents/users/$(userId)/wallet).data.id == walletId;
+    }
+
+    /**
+     * @description Checks if the user owns the transaction, and the transaction exists.
+     * @param {string} userId - The ID of the user.
+     * @param {string} walletId - The ID of the wallet.
+     * @return True if the transaction exists and is owned by the user, false otherwise.
+     */
+     function isExistingTransactionOwner(userId, walletId) {
+        return isWalletOwner(userId, walletId) && resource != null;
+    }
+
+    /**
+     * @description Retrieves the parent channelId from the path.
+     * @return The channelId string.
+     */
+    function parent_channelId() {
+        return get(/databases/$(database)/documents/users/$(userId())/channel).data.id;
+    }
+
+    /**
+     * @description Checks if the user owns the channel.
+     * @param {string} userId - The ID of the user.
+     * @param {string} channelId - The ID of the channel.
+     * @return True if the channel is owned by the user, false otherwise.
+     */
+     function isChannelOwner(userId, channelId) {
+        return isSignedIn() && exists(/databases/$(database)/documents/users/$(userId)/channel) && get(/databases/$(database)/documents/users/$(userId)/channel).data.id == channelId;
+    }
+
+    /**
+     * @description Checks if the user owns the video, and the video exists.
+     * @param {string} userId - The ID of the user.
+     * @param {string} channelId - The ID of the channel.
+     * @return True if the video exists and is owned by the user, false otherwise.
+     */
+     function isExistingVideoOwner(userId, channelId) {
+        return isChannelOwner(userId, channelId) && resource != null;
+    }
+
+     /**
+      * @description Gets the userId from the request.
+      * @return {string} The userId from the request.
+      */
+    function userId() {
+        return request.auth.uid;
+    }
+  }
+}
