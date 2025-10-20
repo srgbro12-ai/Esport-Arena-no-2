@@ -10,6 +10,12 @@ import {
   ArrowRight,
   User,
 } from 'lucide-react';
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
+import { useAuth } from '@/firebase';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +29,7 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
 
 // A simple component to represent the Google button
 const GoogleIcon = () => (
@@ -34,15 +41,29 @@ const GoogleIcon = () => (
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const auth = useAuth();
+  const { toast } = useToast();
 
-  const handleLogin = () => {
-    if (email.toLowerCase() === 'srbrolive99@gmail.com') {
-      // In a real app, this would involve a server call and redirection
-      alert('Welcome! No verification needed.');
-      // router.push('/home');
-    } else {
-      // Normal verification flow
-      alert('Verification required. Please check your email.');
+  const handleGoogleSignIn = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      // You can handle redirection or state update here
+      toast({ title: "Successfully signed in with Google!" });
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Google sign-in failed", description: error.message });
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      toast({ title: "Successfully signed in!" });
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Sign-in failed", description: error.message });
     }
   };
   
@@ -60,7 +81,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Button variant="outline" className="w-full font-bold">
+            <Button variant="outline" className="w-full font-bold" onClick={handleGoogleSignIn}>
               <GoogleIcon />
               Continue with Google
             </Button>
@@ -86,7 +107,11 @@ export default function LoginPage() {
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" type="email" placeholder="gamer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
-                <Button type="submit" className="w-full font-bold" onClick={handleLogin}>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                </div>
+                <Button type="button" className="w-full font-bold" onClick={handleEmailLogin}>
                   Continue with Email
                 </Button>
               </TabsContent>
