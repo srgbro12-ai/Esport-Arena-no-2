@@ -14,6 +14,9 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  ConfirmationResult
 } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 
@@ -42,25 +45,86 @@ const GoogleIcon = () => (
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  
   const auth = useAuth();
   const { toast } = useToast();
+
+  const setupRecaptcha = () => {
+    if (!auth) return;
+    if (!(window as any).recaptchaVerifier) {
+      (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': (response: any) => {
+          // reCAPTCHA solved, allow signInWithPhoneNumber.
+        },
+      });
+    }
+  };
+
+  const handlePhoneSignIn = async () => {
+    if (!auth) return;
+    setupRecaptcha();
+    const appVerifier = (window as any).recaptchaVerifier;
+
+    try {
+      const result = await signInWithPhoneNumber(auth, `+${phone}`, appVerifier);
+      setConfirmationResult(result);
+      setIsOtpSent(true);
+      toast({ title: "OTP sent successfully!" });
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Failed to send OTP", description: error.message });
+      // Reset reCAPTCHA
+       if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
+          (window as any).grecaptcha.reset(widgetId);
+        });
+      }
+    }
+  };
+
+  const handleOtpVerify = async () => {
+    if (!confirmationResult) return;
+    try {
+      await confirmationResult.confirm(otp);
+      toast({ title: "Successfully signed in!" });
+      // Reset state
+      setIsOtpSent(false);
+      setOtp('');
+      setPhone('');
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Invalid OTP", description: error.message });
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      // You can handle redirection or state update here
-      toast({ title: "Successfully signed in with Google!" });
+      if (auth) {
+        await signInWithPopup(auth, provider);
+        toast({ title: "Successfully signed in with Google!" });
+      }
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "Google sign-in failed", description: error.message });
+      let description = error.message;
+      if (error.code === 'auth/operation-not-allowed') {
+        description = "Google sign-in is not enabled for this project. Please enable it in the Firebase console.";
+      }
+      toast({ variant: "destructive", title: "Google sign-in failed", description });
     }
   };
 
   const handleEmailLogin = async () => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast({ title: "Successfully signed in!" });
+      if(auth) {
+        await signInWithEmailAndPassword(auth, email, password);
+        toast({ title: "Successfully signed in!" });
+      }
     } catch (error: any) {
       console.error(error);
       toast({ variant: "destructive", title: "Sign-in failed", description: error.message });
@@ -69,6 +133,7 @@ export default function LoginPage() {
   
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
+       <div id="recaptcha-container"></div>
        <div className="absolute inset-0 bg-grid-white/[0.05] [mask-image:linear-gradient(to_bottom,white_1%,transparent_100%)]"></div>
       <Card className="w-full max-w-md z-10 border-primary/20 shadow-lg shadow-primary/10">
         <CardHeader className="text-center">
@@ -116,13 +181,28 @@ export default function LoginPage() {
                 </Button>
               </TabsContent>
               <TabsContent value="phone" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" placeholder="+1 (555) 000-0000" required />
-                </div>
-                <Button type="submit" className="w-full font-bold">
-                  Send OTP
-                </Button>
+                {!isOtpSent ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input id="phone" type="tel" placeholder="911234567890" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                      <p className="text-xs text-muted-foreground">Enter number with country code, without '+' or '00'.</p>
+                    </div>
+                    <Button type="button" className="w-full font-bold" onClick={handlePhoneSignIn}>
+                      Send OTP
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="otp">Enter OTP</Label>
+                      <Input id="otp" type="text" placeholder="Enter the 6-digit code" value={otp} onChange={(e) => setOtp(e.target.value)} required />
+                    </div>
+                    <Button type="button" className="w-full font-bold" onClick={handleOtpVerify}>
+                      Verify OTP & Login
+                    </Button>
+                  </>
+                )}
               </TabsContent>
             </Tabs>
             
