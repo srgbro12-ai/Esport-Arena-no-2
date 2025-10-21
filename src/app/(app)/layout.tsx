@@ -180,8 +180,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ContentProvider>
-      <ProfileProvider>
+    <ProfileProvider>
+      <ContentProvider>
         <SidebarProvider>
           <Sidebar side="left" variant="sidebar" collapsible="icon">
             {sidebarContent}
@@ -199,7 +199,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
         </SidebarProvider>
-      </ProfileProvider>
-    </ContentProvider>
+      </ContentProvider>
+    </ProfileProvider>
   );
 }

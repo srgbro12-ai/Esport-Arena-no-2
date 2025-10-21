@@ -51,13 +51,13 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { mockUser } from '@/lib/mock-data';
 import { useContent } from '@/context/content-context';
+import { useProfile } from '@/context/ProfileContext';
 
-const getChannelData = (channelId: string, allContent: any[], getSubscriberCount: (id: string) => number) => {
+const getOtherChannelData = (channelId: string, allContent: any[], getSubscriberCount: (id: string) => number) => {
     const channelContent = allContent.filter(c => c.channelId === channelId);
-    if (channelContent.length === 0 && channelId !== mockUser.username) return null;
+    if (channelContent.length === 0) return null;
 
-    const firstChannelVideo = channelContent.length > 0 ? channelContent[0] : { channel: channelId, avatarUrl: 'https://placehold.co/128x128.png', dataAiHint: 'channel logo', isVerified: false };
-    
+    const firstChannelVideo = channelContent[0];
     const subscribers = getSubscriberCount(channelId);
 
     const formatSubscribers = (num: number) => {
@@ -65,23 +65,6 @@ const getChannelData = (channelId: string, allContent: any[], getSubscriberCount
         if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
         return Math.floor(num).toLocaleString();
     };
-
-    if (channelId === mockUser.username) {
-        return {
-            id: channelId,
-            name: mockUser.name,
-            handle: `@${mockUser.username}`,
-            avatarUrl: mockUser.avatarUrl,
-            dataAiHint: 'user avatar',
-            bannerUrl: mockUser.channelBannerUrl,
-            bannerHint: 'abstract gaming',
-            subscribers: `${formatSubscribers(subscribers)} Subscribers`,
-            videoCount: allContent.filter(c => c.channelId === channelId).length,
-            isVerified: mockUser.isVerified,
-            description: mockUser.description,
-            links: [{title: 'Instagram', url: 'https://instagram.com/srbrolive99'}],
-        }
-    }
 
     return {
         id: channelId,
@@ -105,12 +88,24 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
   const defaultTab = searchParams ? searchParams.get('tab') || 'home' : 'home';
   const { toast } = useToast();
   
-  const { videos, shorts, posts, getSubscriberCount } = useContent();
+  const { videos, shorts, posts, getSubscriberCount, addPost, addPlaylist, playlists } = useContent();
   const [liveSubscriberCount, setLiveSubscriberCount] = useState(getSubscriberCount(channelId));
 
   const isYouPage = channelId === mockUser.username;
+  const { profile, updateAvatar, updateBanner } = useProfile();
 
-  const channelData = getChannelData(channelId!, [...videos, ...shorts], getSubscriberCount);
+  let channelData;
+  if (isYouPage) {
+    channelData = {
+        ...profile,
+        subscribers: `${(liveSubscriberCount / 1000000).toFixed(2)}M Subscribers`,
+        videoCount: videos.filter(c => c.channelId === channelId).length + shorts.filter(c => c.channelId === channelId).length,
+        isVerified: mockUser.isVerified // Assuming verification status is from mock
+    }
+  } else {
+    channelData = getOtherChannelData(channelId!, [...videos, ...shorts], getSubscriberCount);
+  }
+
 
    useEffect(() => {
     if (isYouPage) {
@@ -138,14 +133,24 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      toast({ title: 'Profile picture updated!' });
+      const reader = new FileReader();
+      reader.onload = () => {
+          updateAvatar(reader.result as string);
+          toast({ title: "Profile picture updated!" });
+      };
+      reader.readAsDataURL(file);
     }
   };
   
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-       toast({ title: 'Channel banner updated!' });
+      const reader = new FileReader();
+      reader.onload = () => {
+          updateBanner(reader.result as string);
+          toast({ title: 'Channel banner updated!' });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
