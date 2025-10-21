@@ -42,6 +42,7 @@ import { AppHeader } from '@/components/app-header';
 import { mockUser } from '@/lib/mock-data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ContentProvider } from '@/context/content-context';
 
 const studioNavItems = [
   { href: '/studio/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -178,22 +179,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <SidebarProvider>
-      <Sidebar side="left" variant="sidebar" collapsible="icon">
-        {sidebarContent}
-      </Sidebar>
+    <ContentProvider>
+      <SidebarProvider>
+        <Sidebar side="left" variant="sidebar" collapsible="icon">
+          {sidebarContent}
+        </Sidebar>
 
-      <div className="flex flex-1 flex-col">
-        <AppHeader />
-        <SidebarInset>{children}</SidebarInset>
-      </div>
+        <div className="flex flex-1 flex-col">
+          <AppHeader />
+          <SidebarInset>{children}</SidebarInset>
+        </div>
 
-      <div className="fixed bottom-5 right-5 z-50">
-        <Button className="rounded-full w-16 h-16 shadow-lg shadow-primary/30">
-          <LifeBuoy className="w-8 h-8" />
-          <span className="sr-only">Customer Support</span>
-        </Button>
-      </div>
-    </SidebarProvider>
+        <div className="fixed bottom-5 right-5 z-50">
+          <Button className="rounded-full w-16 h-16 shadow-lg shadow-primary/30">
+            <LifeBuoy className="w-8 h-8" />
+            <span className="sr-only">Customer Support</span>
+          </Button>
+        </div>
+      </SidebarProvider>
+    </ContentProvider>
   );
 }

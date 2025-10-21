@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Suspense, useRef, useState, useEffect } from 'react';
-import { useSearchParams, useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   Avatar,
   AvatarFallback,
@@ -24,26 +24,15 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import {
   CheckCircle,
-  Home,
-  Video,
-  Film,
   RadioTower,
-  List,
-  Megaphone,
   Gem,
-  Gamepad2,
-  UserCog,
-  Trash2,
-  MonitorPlay,
-  Camera,
-  Edit,
-  ChevronRight,
-  Plus,
   Upload,
   PenSquare,
   Rocket,
   UserPlus,
-  MessageSquare,
+  Camera,
+  Edit,
+  Plus
 } from 'lucide-react';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
@@ -60,10 +49,10 @@ import Link from 'next/link';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { mockUser, mockVideos } from '@/lib/mock-data';
+import { mockUser } from '@/lib/mock-data';
+import { useContent } from '@/context/content-context';
 
-const getChannelData = (channelId: string, allContent: any[], allPosts: any[], allPlaylists: any[], getSubscriberCount: (id: string) => number) => {
+const getChannelData = (channelId: string, allContent: any[], getSubscriberCount: (id: string) => number) => {
     const channelContent = allContent.filter(c => c.channelId === channelId);
     if (channelContent.length === 0 && channelId !== mockUser.username) return null;
 
@@ -94,7 +83,6 @@ const getChannelData = (channelId: string, allContent: any[], allPosts: any[], a
         }
     }
 
-
     return {
         id: channelId,
         name: firstChannelVideo.channel,
@@ -111,23 +99,6 @@ const getChannelData = (channelId: string, allContent: any[], allPosts: any[], a
     }
 }
 
-const getYouChannelData = (profile: any, allContent: any[], subscriptions: any[]) => {
-    return {
-        id: profile.username, 
-        name: profile.name,
-        handle: `@${profile.username}`,
-        avatarUrl: profile.avatarUrl,
-        dataAiHint: 'user avatar',
-        bannerUrl: profile.channelBannerUrl,
-        bannerHint: 'abstract gaming',
-        subscribers: `${subscriptions.length.toLocaleString()} Subscribers`,
-        videoCount: allContent.filter(c => c.channelId === profile.username).length,
-        isVerified: true,
-        description: profile.description,
-        links: [{title: 'Instagram', url: 'https://instagram.com/srbrolive99'}],
-    }
-}
-
 
 export default function ChannelPageComponent({ channelId }: { channelId: string }) {
   const searchParams = useSearchParams();
@@ -135,12 +106,11 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
   const { toast } = useToast();
   
   const [liveSubscriberCount, setLiveSubscriberCount] = useState(1200000);
+  const { videos, shorts, posts } = useContent();
 
-  const allContentVideos = [...mockVideos, ...mockVideos, ...mockVideos];
-  
   const isYouPage = channelId === mockUser.username;
 
-  const channelData = getChannelData(channelId!, allContentVideos, [], [], () => 1200000);
+  const channelData = getChannelData(channelId!, [...videos, ...shorts], () => 1200000);
 
    useEffect(() => {
     if (isYouPage) {
@@ -158,11 +128,12 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  const channelVideos = mockVideos.filter(video => !video.title.includes('Setup'));
-  const channelShorts = mockVideos;
-  const channelLiveStreams = mockVideos.slice(0,1);
+  const channelVideos = videos.filter(video => video.channelId === channelId);
+  const channelShorts = shorts.filter(short => short.channelId === channelId);
+  const channelPosts = posts.filter(post => post.channelId === channelId);
+  const channelLiveStreams = videos.filter(video => video.channelId === channelId && video.isLive);
 
-  const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => Math.random() - 0.5);
+  const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -464,7 +435,27 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
 
         <TabsContent value="posts">
             <div className="space-y-4">
-                {(
+                {channelPosts.length > 0 ? (
+                    channelPosts.map(post => (
+                        <Card key={post.id}>
+                            <CardHeader>
+                                <div className="flex items-center gap-3">
+                                    <Avatar>
+                                        <AvatarImage src={channelData.avatarUrl} />
+                                        <AvatarFallback>{channelData.name.substring(0,2)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="font-semibold">{channelData.name}</p>
+                                        <p className="text-xs text-muted-foreground">{post.posted}</p>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <p>{post.content}</p>
+                            </CardContent>
+                        </Card>
+                    ))
+                ) : (
                       <Card>
                         <CardContent className="p-6 text-center text-muted-foreground">
                             This channel hasn't made any posts yet.

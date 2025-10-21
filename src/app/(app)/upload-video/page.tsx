@@ -23,6 +23,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { CreatePlaylistDialog } from '@/components/channel/CreatePlaylistDialog';
+import { useContent } from '@/context/content-context';
+import { mockUser } from '@/lib/mock-data';
 
 const uploadVideoSchema = z.object({
   title: z.string().min(1, { message: "Title is required." }),
@@ -50,12 +52,7 @@ export default function UploadPage() {
   const { toast } = useToast();
   const router = useRouter();
   
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-
-  const addPlaylist = (title: string) => {
-    const newPlaylist = { id: `pl-${playlists.length + 1}`, title };
-    setPlaylists(prev => [...prev, newPlaylist]);
-  };
+  const { addVideo, playlists, addPlaylist } = useContent();
 
   const form = useForm<z.infer<typeof uploadVideoSchema>>({
     resolver: zodResolver(uploadVideoSchema),
@@ -107,19 +104,19 @@ export default function UploadPage() {
         return;
     }
 
+    addVideo({
+      title: data.title,
+      channelId: mockUser.username,
+      thumbnailUrl: thumbnailFile ? URL.createObjectURL(thumbnailFile) : 'https://placehold.co/600x400.png',
+      dataAiHint: data.description?.split(' ').slice(0, 2).join(' ') || 'uploaded video',
+    });
+
     toast({
         title: "Video Uploaded Successfully!",
         description: "Your video details have been saved.",
     });
-         
-    // In a real app, you would handle the actual upload here.
-    console.log("Form data:", data);
-    console.log("Video file:", videoFile);
-    console.log("Thumbnail file:", thumbnailFile);
 
-    setTimeout(() => {
-        router.push('/studio/content');
-    }, 1500);
+    router.push(`/channel/${mockUser.username}?tab=videos`);
   }
 
   const videoSrc = videoFile ? URL.createObjectURL(videoFile) : '';
