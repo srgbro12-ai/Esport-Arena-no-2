@@ -49,15 +49,15 @@ import Link from 'next/link';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { mockUser } from '@/lib/mock-data';
+import { mockUser, mockLeaderboard } from '@/lib/mock-data';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
 
 const getOtherChannelData = (channelId: string, allContent: any[], getSubscriberCount: (id: string) => number) => {
     const channelContent = allContent.filter(c => c.channelId === channelId);
-    if (channelContent.length === 0) return null;
+    
+    const leaderboardUser = mockLeaderboard.find(u => u.name === channelId);
 
-    const firstChannelVideo = channelContent[0];
     const subscribers = getSubscriberCount(channelId);
 
     const formatSubscribers = (num: number) => {
@@ -68,16 +68,16 @@ const getOtherChannelData = (channelId: string, allContent: any[], getSubscriber
 
     return {
         id: channelId,
-        name: firstChannelVideo.channelId,
-        handle: `@${firstChannelVideo.channelId.toLowerCase().replace(/\s+/g, '')}`,
-        avatarUrl: firstChannelVideo?.avatarUrl || 'https://placehold.co/128x128.png',
-        dataAiHint: firstChannelVideo?.dataAiHint || 'channel logo',
+        name: channelId,
+        handle: `@${channelId.toLowerCase().replace(/\s+/g, '')}`,
+        avatarUrl: leaderboardUser?.avatarUrl || 'https://placehold.co/128x128.png',
+        dataAiHint: 'channel logo',
         bannerUrl: 'https://placehold.co/1080x240.png',
         bannerHint: 'abstract background',
         subscribers: `${formatSubscribers(subscribers)} Subscribers`,
         videoCount: channelContent.length,
-        isVerified: !!firstChannelVideo?.isVerified,
-        description: `Welcome to the official channel of ${firstChannelVideo.channelId}!`,
+        isVerified: false,
+        description: `Welcome to the official channel of ${channelId}!`,
         links: [],
     }
 }
@@ -208,7 +208,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                     {channelData.isVerified && <CheckCircle className="text-blue-400 text-xl" />}
                     </div>
                     <div className="flex items-center justify-center sm:justify-start gap-x-2 text-muted-foreground mt-1 text-sm">
-                    <span>{channelData.handle}</span>
+                    <Link href={`/channel/${channelId}`} className="hover:underline">{channelData.handle}</Link>
                     <span>•</span>
                     {isYouPage ? (
                         <Link href="/studio/analytics" className="hover:underline flex items-center gap-1.5">
@@ -581,3 +581,5 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
     </div>
   );
 }
+
+    
