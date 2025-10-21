@@ -108,21 +108,29 @@ export function AppHeader() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <Upload className="mr-2 h-4 w-4" />
-              Upload Video
+            <DropdownMenuItem asChild>
+              <Link href="/upload-video">
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Video
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Film className="mr-2 h-4 w-4" />
-              Upload Short
+            <DropdownMenuItem asChild>
+              <Link href="/upload-short">
+                <Film className="mr-2 h-4 w-4" />
+                Upload Short
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Radio className="mr-2 h-4 w-4" />
-              Go Live
+            <DropdownMenuItem asChild>
+              <Link href="/go-live">
+                <Radio className="mr-2 h-4 w-4" />
+                Go Live
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <PlusSquare className="mr-2 h-4 w-4" />
-              Create Post
+            <DropdownMenuItem asChild>
+              <Link href="/create-post">
+                <PlusSquare className="mr-2 h-4 w-4" />
+                Create Post
+              </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
