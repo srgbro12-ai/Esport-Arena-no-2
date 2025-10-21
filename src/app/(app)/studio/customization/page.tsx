@@ -1,183 +1,257 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import Image from 'next/image';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { mockUser } from '@/lib/mock-data';
+import Image from 'next/image';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Copy, Plus, Trash2, Pencil } from 'lucide-react';
+import { useProfile } from '@/context/ProfileContext';
 import { useToast } from '@/hooks/use-toast';
-import { Camera, Edit, Wand2 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { generateChannelDescription, GenerateChannelDescriptionInput } from '@/ai/flows/generate-channel-description';
-import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import Link from 'next/link';
 
 export default function CustomizationPage() {
-  const { toast } = useToast();
-  const [description, setDescription] = useState(mockUser.description);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [avatar, setAvatar] = useState(mockUser.avatarUrl);
-  const [banner, setBanner] = useState(mockUser.channelBannerUrl);
+    const { toast } = useToast();
+    const { profile, updateAvatar, updateBanner, updateProfile } = useProfile();
+    const [links, setLinks] = useState(profile.links);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
+    const [name, setName] = useState(profile.name);
+    const [handle, setHandle] = useState(profile.handle);
+    const [description, setDescription] = useState(profile.description);
+    const [contactEmail, setContactEmail] = useState(profile.email || '');
 
-  const handlePublish = () => {
-    toast({
-      title: 'Changes Published!',
-      description: 'Your channel has been updated.',
-    });
-  };
+    const addLink = () => {
+        if (links.length < 5) {
+            setLinks([...links, { title: '', url: '' }]);
+        }
+    };
 
-  const handleGenerateDescription = async () => {
-    setIsGenerating(true);
-    try {
-      const input: GenerateChannelDescriptionInput = {
-        keywords: 'Pro gamer, content creator, streamer, competitive gaming, Esport Arena',
-      };
-      const result = await generateChannelDescription(input);
-      setDescription(result.description);
-      toast({
-        title: 'Description generated!',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: 'Error generating description',
-        variant: 'destructive',
-      });
+    const removeLink = (index: number) => {
+        setLinks(links.filter((_, i) => i !== index));
+    };
+
+    const handleLinkChange = (index: number, field: 'title' | 'url', value: string) => {
+        const newLinks = [...links];
+        newLinks[index][field] = value;
+        setLinks(newLinks);
+    };
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                updateAvatar(reader.result as string);
+                toast({ title: "Profile picture updated!" });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                updateBanner(reader.result as string);
+                toast({ title: "Channel banner updated!" });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handlePublish = () => {
+        updateProfile({ name, handle, description, email: contactEmail, links });
+        toast({
+            title: "Channel updated successfully!",
+        });
     }
-    setIsGenerating(false);
-  };
-  
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatar(URL.createObjectURL(file));
-      toast({ title: 'Profile picture updated! Click Publish to save.' });
-    }
-  };
-  
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-       setBanner(URL.createObjectURL(file));
-       toast({ title: 'Channel banner updated! Click Publish to save.' });
-    }
-  };
 
-  return (
-    <div className="p-4 md:p-6 lg:p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl md:text-4xl font-headline font-bold text-glow">Channel Customization</h1>
-        <Button onClick={handlePublish}>Publish</Button>
-      </div>
+    return (
+        <div className="p-4 md:p-6 lg:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h1 className="text-2xl font-bold">Channel customization</h1>
+                <div className="flex items-center gap-2">
+                    <Link href={`/channel/${profile.id}`}>
+                        <Button variant="ghost">View channel</Button>
+                    </Link>
+                    <Button variant="outline">Cancel</Button>
+                    <Button onClick={handlePublish}>Publish</Button>
+                </div>
+            </div>
 
-      <Tabs defaultValue="branding" className="w-full">
-        <TabsList>
-          <TabsTrigger value="branding">Branding</TabsTrigger>
-          <TabsTrigger value="basic-info">Basic Info</TabsTrigger>
-        </TabsList>
-        <TabsContent value="branding" className="mt-6">
-          <div className="grid gap-8">
-             <Card>
-              <CardHeader>
-                <CardTitle>Picture</CardTitle>
-                <CardDescription>
-                  Your profile picture will appear where your channel is presented on MyTube, like next to your videos and comments.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex items-center gap-6">
-                 <Avatar className="w-24 h-24">
-                    {avatar && <AvatarImage src={avatar} alt={mockUser.name} />}
-                    <AvatarFallback>{mockUser.name.substring(0, 2)}</AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col gap-2">
-                    <Button variant="outline" onClick={() => avatarInputRef.current?.click()}>
-                        <Edit className="mr-2 h-4 w-4" /> Change
-                    </Button>
-                    <input
-                      type="file"
-                      ref={avatarInputRef}
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                      accept="image/*"
-                    />
-                </div>
-              </CardContent>
-            </Card>
+            <Tabs defaultValue="branding" className="w-full">
+                <TabsList className="bg-transparent p-0 border-b rounded-none h-auto justify-start">
+                    <TabsTrigger value="layout">Layout</TabsTrigger>
+                    <TabsTrigger value="branding">Branding</TabsTrigger>
+                    <TabsTrigger value="basic-info">Basic info</TabsTrigger>
+                </TabsList>
+                <TabsContent value="layout" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Layout</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-muted-foreground">Customize the layout of your channel homepage. Add a video spotlight and featured sections.</p>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="branding" className="mt-6 space-y-8">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Picture</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col md:flex-row items-center gap-6">
+                            <Link href={`/channel/${profile.id}`} className="block">
+                                <Image src={profile.avatarUrl} width={128} height={128} alt="Profile Picture" className="rounded-full object-cover" data-ai-hint={profile.dataAiHint} />
+                            </Link>
+                            <div className="flex-1">
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    Your profile picture will appear where your channel is presented on MyTube, like next to your videos and comments. It’s recommended to use a picture that’s at least 128 x 128 pixels and 4MB or less. Use a PNG or GIF (no animations) file.
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <input type="file" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" accept="image/*" />
+                                    <Button variant="outline" onClick={() => avatarInputRef.current?.click()}>Change</Button>
+                                    <Button variant="ghost" onClick={() => updateAvatar('https://placehold.co/128x128.png')}>Remove</Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Banner Image</CardTitle>
-                <CardDescription>
-                  This image will appear across the top of your channel.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="relative aspect-[4/1] w-full max-w-3xl bg-secondary rounded-lg mb-4">
-                  {banner && <Image src={banner} alt="Channel Banner" fill className="object-cover rounded-lg" />}
-                  <div 
-                    className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer rounded-lg"
-                    onClick={() => bannerInputRef.current?.click()}
-                  >
-                    <Camera className="h-8 w-8 text-white" />
-                  </div>
-                  <input 
-                    type="file"
-                    ref={bannerInputRef}
-                    onChange={handleBannerChange}
-                    className="hidden"
-                    accept="image/*"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">Recommended size: At least 1080 x 240 pixels.</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        <TabsContent value="basic-info" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="channel-name">Name</Label>
-                <Input id="channel-name" defaultValue={mockUser.name} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="channel-handle">Handle</Label>
-                <Input id="channel-handle" defaultValue={`@${mockUser.username}`} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="channel-description">Description</Label>
-                <Textarea
-                  id="channel-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={8}
-                  placeholder="Tell viewers about your channel."
-                />
-                <div className="flex justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleGenerateDescription}
-                    disabled={isGenerating}
-                  >
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    {isGenerating ? 'Generating...' : 'Generate with AI'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Banner image</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col-reverse md:flex-row items-center gap-6">
+                             <div className="flex-1">
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    This image will appear across the top of your channel. For the best results on all devices, use an image that’s at least 1080 x 240 pixels and 6MB or less.
+                                </p>
+                                <div className="flex items-center gap-2">
+                                     <input type="file" ref={bannerInputRef} onChange={handleBannerChange} className="hidden" accept="image/*" />
+                                    <Button variant="outline" onClick={() => bannerInputRef.current?.click()}>Change</Button>
+                                    <Button variant="ghost" onClick={() => updateBanner('https://placehold.co/1080x240.png')}>Remove</Button>
+                                </div>
+                            </div>
+                            <Image src={profile.bannerUrl} width={1080} height={240} alt="Banner Preview" className="rounded-md object-contain border p-2 bg-secondary/30 max-w-sm w-full" data-ai-hint={profile.bannerHint} />
+                        </CardContent>
+                    </Card>
+
+                      <Card>
+                        <CardHeader>
+                            <CardTitle>Video watermark</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col md:flex-row items-center gap-6">
+                             <div className="flex-1">
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    The watermark will appear on your videos in the right-hand corner of the video player.
+                                </p>
+                                <RadioGroup defaultValue="entire" className="space-y-2 mb-4">
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="end" id="end"/>
+                                        <Label htmlFor="end" className="font-normal">End of video</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="custom" id="custom" />
+                                        <Label htmlFor="custom" className="font-normal">Custom start time</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="entire" id="entire"/>
+                                        <Label htmlFor="entire" className="font-normal">Entire video</Label>
+                                    </div>
+                                </RadioGroup>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline">Change</Button>
+                                    <Button variant="ghost">Remove</Button>
+                                </div>
+                            </div>
+                            <div className="relative w-full max-w-sm h-auto aspect-video rounded-md overflow-hidden border bg-secondary/30 flex items-center justify-center">
+                                <Image src="https://placehold.co/400x225.png" width={400} height={225} alt="Video watermark preview" className="opacity-50" data-ai-hint="video player"/>
+                                <Image src="https://placehold.co/48x48.png" width={48} height={48} alt="Watermark" className="absolute bottom-2 right-2 border-2 border-white/50" data-ai-hint="subscribe icon"/>
+                            </div>
+                        </CardContent>
+                    </Card>
+                 </TabsContent>
+                <TabsContent value="basic-info" className="mt-6 space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Name & Handle</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name</Label>
+                                <div className="relative">
+                                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+                                    <Pencil className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="handle">Handle</Label>
+                                <Input id="handle" value={handle} onChange={(e) => setHandle(e.target.value)} />
+                                <p className="text-xs text-muted-foreground">Choose your unique handle by adding letters and numbers. You can change your handle back within 14 days.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader><CardTitle>Description</CardTitle></CardHeader>
+                        <CardContent>
+                            <Textarea rows={10} value={description} onChange={(e) => setDescription(e.target.value)} />
+                        </CardContent>
+                    </Card>
+
+                      <Card>
+                        <CardHeader><CardTitle>Channel URL</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground mb-2">This is the standard web address for your channel. It includes your unique channel ID, which is the numbers and letters at the end of the URL.</p>
+                            <div className="flex items-center gap-2">
+                                <Input readOnly value={`https://mytube.com/channel/${profile.id}`} />
+                                <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(`https://mytube.com/channel/${profile.id}`)}><Copy className="h-4 w-4" /></Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Links</CardTitle>
+                            <CardDescription>Share external links with your viewers. They'll be visible on your channel profile and about page.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {links.map((link, index) => (
+                                <div key={index} className="flex items-end gap-2">
+                                    <div className="flex-1 grid grid-cols-2 gap-2">
+                                        <Input placeholder="Link title (required)" value={link.title} onChange={(e) => handleLinkChange(index, 'title', e.target.value)} />
+                                        <Input placeholder="URL (required)" value={link.url} onChange={(e) => handleLinkChange(index, 'url', e.target.value)} />
+                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={() => removeLink(index)}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            ))}
+                            <Button variant="outline" onClick={addLink} disabled={links.length >= 5}>
+                                <Plus className="mr-2 h-4 w-4" /> Add Link
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Contact info</CardTitle>
+                            <CardDescription>Let people know how to contact you with business inquiries. The email address you enter may appear in the About section of your channel and be visible to viewers.</CardDescription>
+                        </CardHeader>
+                         <CardContent>
+                            <Label htmlFor="contact-email">Email</Label>
+                            <Input id="contact-email" type="email" placeholder="Enter your email address" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+                        </CardContent>
+                    </Card>
+                 </TabsContent>
+            </Tabs>
+        </div>
+    );
 }
