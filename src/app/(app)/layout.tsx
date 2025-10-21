@@ -155,7 +155,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 isActive={pathname.startsWith('/studio')}
                 tooltip={{ children: 'MyTube Studio' }}
               >
-                <Link href="/studio/dashboard">
+                <Link href="/studio/analytics">
                   <Clapperboard className="icon-glow" />
                   <span>MyTube Studio</span>
                 </Link>

@@ -180,7 +180,7 @@ export function AppHeader() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/studio">
+              <Link href="/studio/analytics">
                 <Clapperboard className="mr-2 h-4 w-4" />
                 <span>MyTube Studio</span>
               </Link>
