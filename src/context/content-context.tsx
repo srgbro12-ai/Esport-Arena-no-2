@@ -11,9 +11,10 @@ interface Video {
     posted: string;
     postedDate: Date;
     thumbnailUrl?: string;
-    hint?: string;
+    dataAiHint?: string;
     channelId: string;
     isLive?: boolean;
+    isShort?: boolean;
 }
 
 interface Short {
@@ -23,8 +24,9 @@ interface Short {
     posted: string;
     postedDate: Date;
     thumbnailUrl?: string;
-    hint?: string;
+    dataAiHint?: string;
     channelId: string;
+    isShort?: boolean;
 }
 
 interface Post {
@@ -55,29 +57,32 @@ interface ContentContextType {
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
 
 export const ContentProvider = ({ children }: { children: ReactNode }) => {
-    const [videos, setVideos] = useState<Video[]>(mockVideos.map(v => ({...v, channelId: 'srbrolive99', postedDate: new Date() })));
-    const [shorts, setShorts] = useState<Short[]>(mockVideos.map(v => ({...v, id: `s-${v.id}`, channelId: 'srbrolive99', postedDate: new Date() })));
+    const [videos, setVideos] = useState<Video[]>(mockVideos.map(v => ({...v, channelId: 'srbrolive99', postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 14) })));
+    const [shorts, setShorts] = useState<Short[]>(mockVideos.map(v => ({...v, id: `s-${v.id}`, channelId: 'srbrolive99', postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true })));
     const [posts, setPosts] = useState<Post[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
     const addVideo = (video: Omit<Video, 'id' | 'views' | 'posted' | 'postedDate'>) => {
+        const postedDate = new Date();
         const newVideo: Video = {
             ...video,
             id: `v${videos.length + 1}`,
             views: '0',
-            posted: 'just now',
-            postedDate: new Date(),
+            posted: formatDistanceToNow(postedDate, { addSuffix: true }),
+            postedDate,
         };
         setVideos(prev => [newVideo, ...prev]);
     };
     
     const addShort = (short: Omit<Short, 'id' | 'views' | 'posted' | 'postedDate'>) => {
+        const postedDate = new Date();
         const newShort: Short = {
             ...short,
             id: `s${shorts.length + 1}`,
             views: '0',
-            posted: 'just now',
-            postedDate: new Date(),
+            posted: formatDistanceToNow(postedDate, { addSuffix: true }),
+            postedDate,
+            isShort: true
         };
         setShorts(prev => [newShort, ...prev]);
     };

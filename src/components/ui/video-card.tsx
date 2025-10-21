@@ -1,8 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
-import { useContent } from '@/context/content-context';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './avatar';
 import { mockUser } from '@/lib/mock-data';
 
 type VideoCardProps = {
@@ -16,6 +15,7 @@ type VideoCardProps = {
     channelId: string;
   };
 };
+
 
 const getChannelInfo = (channelId: string) => {
     if (channelId === mockUser.username) {
@@ -62,7 +62,7 @@ export function VideoCard({ video }: VideoCardProps) {
             <div>
                 <h3 className="font-semibold text-sm leading-tight group-hover:text-primary transition-colors line-clamp-2">{video.title}</h3>
                 <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    <p>{channelInfo.name}</p>
+                    <p className="hover:underline">{channelInfo.name}</p>
                     <p>
                         {video.views} views &middot; {video.posted}
                     </p>
