@@ -36,7 +36,7 @@ const getChannelInfo = (channelId: string, getSubscriberCount: (id: string) => n
 export default function WatchPage() {
     const searchParams = useSearchParams();
     const videoId = searchParams.get('v');
-    const { videos, shorts } = useContent();
+    const { videos, shorts, getSubscriberCount } = useContent();
 
     const allVideos = [...videos, ...shorts];
     const currentVideo = allVideos.find(v => v.id === videoId);
@@ -47,10 +47,10 @@ export default function WatchPage() {
         return <div className="flex-1 text-center p-10">Video not found.</div>;
     }
 
-    const channelInfo = getChannelInfo(currentVideo.channelId, () => 1200000);
+    const channelInfo = getChannelInfo(currentVideo.channelId, getSubscriberCount);
 
     // This is a mock source. In a real app, this would come from the video data.
-    const videoSrc = currentVideo.thumbnailUrl ? currentVideo.thumbnailUrl.replace('600x400', '1280x720') : 'https://placehold.co/1280x720.png';
+    const videoSrc = currentVideo.thumbnailUrl ? currentVideo.thumbnailUrl.replace(/(\d+)\/(\d+)/, '1280/720') : 'https://placehold.co/1280x720.png';
 
 
     return (
@@ -80,7 +80,7 @@ export default function WatchPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" className="flex items-center gap-2">
-                            <ThumbsUp className="h-5 w-5" /> 1.2K
+                            <ThumbsUp className="h-5 w-5" /> {currentVideo.likeCount.toLocaleString()}
                         </Button>
                          <Button variant="ghost">
                             <ThumbsDown className="h-5 w-5" />

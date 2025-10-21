@@ -85,8 +85,8 @@ const getChannelData = (channelId: string, allContent: any[], getSubscriberCount
 
     return {
         id: channelId,
-        name: firstChannelVideo.channel,
-        handle: `@${firstChannelVideo.channel.toLowerCase().replace(/\s+/g, '')}`,
+        name: firstChannelVideo.channelId,
+        handle: `@${firstChannelVideo.channelId.toLowerCase().replace(/\s+/g, '')}`,
         avatarUrl: firstChannelVideo?.avatarUrl || 'https://placehold.co/128x128.png',
         dataAiHint: firstChannelVideo?.dataAiHint || 'channel logo',
         bannerUrl: 'https://placehold.co/1080x240.png',
@@ -94,7 +94,7 @@ const getChannelData = (channelId: string, allContent: any[], getSubscriberCount
         subscribers: `${formatSubscribers(subscribers)} Subscribers`,
         videoCount: channelContent.length,
         isVerified: !!firstChannelVideo?.isVerified,
-        description: `Welcome to the official channel of ${firstChannelVideo.channel}!`,
+        description: `Welcome to the official channel of ${firstChannelVideo.channelId}!`,
         links: [],
     }
 }
@@ -105,22 +105,22 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
   const defaultTab = searchParams ? searchParams.get('tab') || 'home' : 'home';
   const { toast } = useToast();
   
-  const [liveSubscriberCount, setLiveSubscriberCount] = useState(1200000);
-  const { videos, shorts, posts } = useContent();
+  const { videos, shorts, posts, getSubscriberCount } = useContent();
+  const [liveSubscriberCount, setLiveSubscriberCount] = useState(getSubscriberCount(channelId));
 
   const isYouPage = channelId === mockUser.username;
 
-  const channelData = getChannelData(channelId!, [...videos, ...shorts], () => 1200000);
+  const channelData = getChannelData(channelId!, [...videos, ...shorts], getSubscriberCount);
 
    useEffect(() => {
     if (isYouPage) {
-        setLiveSubscriberCount(1200000);
+        setLiveSubscriberCount(getSubscriberCount(channelId));
         const interval = setInterval(() => {
             setLiveSubscriberCount(prev => prev + (Math.random() > 0.8 ? (Math.random() > 0.5 ? 1 : -1) : 0));
         }, 2000);
         return () => clearInterval(interval);
     }
-   }, [isYouPage]);
+   }, [isYouPage, channelId, getSubscriberCount]);
 
   if (!channelData) {
       return <div className="text-center p-10">Channel not found.</div>;
@@ -206,7 +206,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                     <span>{channelData.handle}</span>
                     <span>•</span>
                     {isYouPage ? (
-                        <Link href="/studio/analytics/live-count" className="hover:underline flex items-center gap-1.5">
+                        <Link href="/studio/analytics" className="hover:underline flex items-center gap-1.5">
                             <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
