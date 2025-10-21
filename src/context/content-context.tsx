@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { mockVideos } from '@/lib/mock-data';
+import { mockVideos, mockUser } from '@/lib/mock-data';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Video {
@@ -56,9 +56,11 @@ interface ContentContextType {
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
 
+const otherChannels = ['GodLike Esports', 'TSM Entity', 'ScoutOP', 'Mortal'];
+
 export const ContentProvider = ({ children }: { children: ReactNode }) => {
-    const [videos, setVideos] = useState<Video[]>(mockVideos.map(v => ({...v, channelId: 'srbrolive99', postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 14) })));
-    const [shorts, setShorts] = useState<Short[]>(mockVideos.map(v => ({...v, id: `s-${v.id}`, channelId: 'srbrolive99', postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true })));
+    const [videos, setVideos] = useState<Video[]>(mockVideos.map((v, i) => ({...v, channelId: i % 2 === 0 ? mockUser.username : otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 14) })));
+    const [shorts, setShorts] = useState<Short[]>(mockVideos.map((v, i) => ({...v, id: `s-${v.id}`, channelId: i % 2 !== 0 ? mockUser.username : otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true })));
     const [posts, setPosts] = useState<Post[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
 

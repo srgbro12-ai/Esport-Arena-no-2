@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { useContent } from '@/context/content-context';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { mockUser } from '@/lib/mock-data';
+import { mockUser, mockLeaderboard } from '@/lib/mock-data';
 
 type VideoCardProps = {
   video: {
@@ -14,6 +14,7 @@ type VideoCardProps = {
     thumbnailUrl?: string;
     dataAiHint?: string;
     channelId: string;
+    isShort?: boolean;
   };
 };
 
@@ -24,6 +25,15 @@ const getChannelInfo = (channelId: string) => {
             avatarUrl: mockUser.avatarUrl,
         }
     }
+    
+    const leaderboardUser = mockLeaderboard.find(u => u.name === channelId);
+    if(leaderboardUser) {
+        return {
+            name: leaderboardUser.name,
+            avatarUrl: leaderboardUser.avatarUrl
+        }
+    }
+    
     // In a real app, you'd fetch this from a DB
     return {
         name: channelId,
@@ -39,7 +49,7 @@ export function VideoCard({ video }: VideoCardProps) {
     <Link href={`/watch?v=${video.id}`} className="group block">
         <Card className="overflow-hidden border-transparent bg-transparent shadow-none">
             <CardContent className="p-0">
-            <div className="aspect-video relative overflow-hidden rounded-lg">
+            <div className={`${video.isShort ? 'aspect-[9/16]' : 'aspect-video'} relative overflow-hidden rounded-lg`}>
                 {video.thumbnailUrl && (
                 <Image
                     src={video.thumbnailUrl}
@@ -62,7 +72,7 @@ export function VideoCard({ video }: VideoCardProps) {
             <div>
                 <h3 className="font-semibold text-sm leading-tight group-hover:text-primary transition-colors line-clamp-2">{video.title}</h3>
                 <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    <p>{channelInfo.name}</p>
+                    <p className="hover:underline">{channelInfo.name}</p>
                     <p>
                         {video.views} views &middot; {video.posted}
                     </p>
