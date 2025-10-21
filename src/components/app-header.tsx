@@ -14,6 +14,7 @@ import {
   Upload,
   User,
   Wallet,
+  Film,
 } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -110,6 +111,10 @@ export function AppHeader() {
             <DropdownMenuItem>
               <Upload className="mr-2 h-4 w-4" />
               Upload Video
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Film className="mr-2 h-4 w-4" />
+              Upload Short
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Radio className="mr-2 h-4 w-4" />
