@@ -112,7 +112,7 @@ export default function CompleteProfilePage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="dob" className="block text-sm font-medium text-gray-400 mb-1">Janam Tithi (Age)</label>
+                            <label htmlFor="dob" className="block text-sm font-medium text-gray-400 mb-1">date of barth</label>
                             <input id="dob" type="date" className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${dob ? 'text-white' : 'text-gray-500'}`} value={dob} onChange={(e) => setDob(e.target.value)} />
                         </div>
                         <div>
