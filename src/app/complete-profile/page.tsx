@@ -89,7 +89,7 @@ export default function CompleteProfilePage() {
 
             <div className="bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700">
                 <div className="space-y-6">
-                    <h2 className="text-lg font-semibold text-white">1. Apni Profile Poori Karein</h2>
+                    <h2 className="text-lg font-semibold text-white">create channel profile</h2>
                     
                     <div className="flex flex-col items-center">
                         <label htmlFor="profilePicInput" className="profile-pic-wrapper">
