@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -9,11 +10,13 @@ import {
   Gift,
   ArrowRight,
   User,
+  UserPlus,
 } from 'lucide-react';
 import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult
@@ -49,6 +52,7 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [isOtpSent, setIsOtpSent] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   
   const auth = useAuth();
   const { toast } = useToast();
@@ -107,11 +111,10 @@ export default function LoginPage() {
     try {
       if (auth) {
         await signInWithPopup(auth, provider);
-        toast({ title: "Successfully signed in with Google!" });
+        toast({ title: `Successfully ${authMode === 'signin' ? 'signed in' : 'signed up'} with Google!` });
       }
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        // User closed the popup, so we don't need to show an error.
         return;
       }
       console.error(error);
@@ -123,15 +126,19 @@ export default function LoginPage() {
     }
   };
 
-  const handleEmailLogin = async () => {
+  const handleEmailAuth = async () => {
+    if (!auth) return;
     try {
-      if(auth) {
+      if (authMode === 'signin') {
         await signInWithEmailAndPassword(auth, email, password);
         toast({ title: "Successfully signed in!" });
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+        toast({ title: "Account created successfully!" });
       }
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "Sign-in failed", description: error.message });
+      toast({ variant: "destructive", title: `${authMode === 'signin' ? 'Sign-in' : 'Sign-up'} failed`, description: error.message });
     }
   };
   
@@ -142,10 +149,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-md z-10 border-primary/20 shadow-lg shadow-primary/10">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-headline text-glow">
-            Welcome to Esport Arena
+            {authMode === 'signin' ? 'Welcome Back!' : 'Create an Account'}
           </CardTitle>
           <CardDescription>
-            Sign in or create an account to start competing
+            {authMode === 'signin' ? 'Sign in to continue to Esport Arena' : 'Join the arena and start competing!'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -161,7 +168,7 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-card px-2 text-muted-foreground">
-                  Or continue with
+                  Or
                 </span>
               </div>
             </div>
@@ -180,8 +187,12 @@ export default function LoginPage() {
                   <Label htmlFor="password">Password</Label>
                   <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
-                <Button type="button" className="w-full font-bold" onClick={handleEmailLogin}>
-                  Continue with Email
+                <Button type="button" className="w-full font-bold" onClick={handleEmailAuth}>
+                   {authMode === 'signin' ? (
+                    <> <User className="mr-2 h-4 w-4" /> Sign In with Email </>
+                   ) : (
+                    <> <UserPlus className="mr-2 h-4 w-4" /> Create Account </>
+                   )}
                 </Button>
               </TabsContent>
               <TabsContent value="phone" className="space-y-4 pt-4">
@@ -203,7 +214,7 @@ export default function LoginPage() {
                       <Input id="otp" type="text" placeholder="Enter the 6-digit code" value={otp} onChange={(e) => setOtp(e.target.value)} required />
                     </div>
                     <Button type="button" className="w-full font-bold" onClick={handleOtpVerify}>
-                      Verify OTP & Login
+                      Verify OTP & Continue
                     </Button>
                   </>
                 )}
@@ -212,9 +223,12 @@ export default function LoginPage() {
             
             <Separator />
 
-            <div className="space-y-2">
-                <Label htmlFor="referral">Referral Code (Optional)</Label>
-                <Input id="referral" placeholder="Enter referral code" />
+            <div className="text-center text-sm">
+                <Button variant="link" onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}>
+                  {authMode === 'signin'
+                    ? "Don't have an account? Sign Up"
+                    : 'Already have an account? Sign In'}
+                </Button>
             </div>
 
           </div>
