@@ -1,71 +1,44 @@
 'use client';
-import { useRef, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { useProfile } from '@/context/ProfileContext';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CompleteProfilePage() {
+    const { profile, updateAvatar, updateProfile } = useProfile();
+    const router = useRouter();
+    const { toast } = useToast();
+
+    const [displayName, setDisplayName] = useState('');
+    const [handle, setHandle] = useState('');
+    const [dob, setDob] = useState('');
+    const [gender, setGender] = useState('');
+
     const profilePicInputRef = useRef<HTMLInputElement>(null);
-    const profilePicPreviewRef = useRef<HTMLImageElement>(null);
-    const dobInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        const tagBaseClasses = "py-2 px-4 bg-gray-700 text-gray-300 rounded-full cursor-pointer transition-all duration-200 ease-in-out border-2 border-transparent hover:border-cyan-500 hover:text-white";
-        
-        const genderTags = document.querySelectorAll('.onboarding-tag-gender');
-        genderTags.forEach(tag => {
-            tag.className = `${tag.className} ${tagBaseClasses}`;
-            const handleClick = () => {
-                genderTags.forEach(t => t.classList.remove('tag-selected'));
-                tag.classList.toggle('tag-selected');
-            };
-            tag.addEventListener('click', handleClick);
-            return () => tag.removeEventListener('click', handleClick);
-        });
-
-        const profilePicInput = profilePicInputRef.current;
-        const profilePicPreview = profilePicPreviewRef.current;
-
-        const handleProfilePicChange = (event: Event) => {
-            const input = event.target as HTMLInputElement;
-            const file = input.files?.[0];
-            if (file && profilePicPreview) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    if(e.target?.result) {
-                        profilePicPreview.src = e.target.result as string;
-                    }
+    const handleProfilePicChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (e.target?.result) {
+                    updateAvatar(e.target.result as string);
                 }
-                reader.readAsDataURL(file);
             }
-        };
-
-        if (profilePicInput) {
-            profilePicInput.addEventListener('change', handleProfilePicChange);
-            return () => profilePicInput.removeEventListener('change', handleProfilePicChange);
+            reader.readAsDataURL(file);
         }
-        
-        const dobInput = dobInputRef.current;
-        const handleDobFocus = () => {
-            dobInput?.classList.remove('text-gray-500');
-            dobInput?.classList.add('text-white');
-        };
-        const handleDobBlur = () => {
-            if (dobInput && !dobInput.value) {
-                dobInput.classList.add('text-gray-500');
-                dobInput.classList.remove('text-white');
-            }
-        };
-
-        if (dobInput) {
-            dobInput.addEventListener('focus', handleDobFocus);
-            dobInput.addEventListener('blur', handleDobBlur);
-            return () => {
-                dobInput.removeEventListener('focus', handleDobFocus);
-                dobInput.removeEventListener('blur', handleDobBlur);
-            }
-        }
-
-    }, []);
+    };
+    
+    const handleSave = () => {
+        updateProfile({ name: displayName, handle: `@${handle}` });
+        toast({
+            title: "Profile completed!",
+            description: "Welcome to Esport Arena!",
+        });
+        router.push('/home');
+    };
 
     return (
         <div className="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
@@ -120,38 +93,44 @@ export default function CompleteProfilePage() {
                     
                     <div className="flex flex-col items-center">
                         <label htmlFor="profilePicInput" className="profile-pic-wrapper">
-                            <img ref={profilePicPreviewRef} id="profilePicPreview" src="https://placehold.co/128x128/374151/E0E0E0?text=Upload" alt="Profile Picture" className="profile-pic" />
+                            <Image width={128} height={128} src={profile.avatarUrl} alt="Profile Picture" className="profile-pic" data-ai-hint={profile.dataAiHint}/>
                             <div className="profile-pic-upload-overlay"><span>Change<br/>Picture</span></div>
                         </label>
-                        <input ref={profilePicInputRef} type="file" id="profilePicInput" accept="image/*" className="hidden" />
+                        <input ref={profilePicInputRef} type="file" id="profilePicInput" accept="image/*" className="hidden" onChange={handleProfilePicChange} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="displayName" className="block text-sm font-medium text-gray-400 mb-1">channel name</label>
-                            <input id="displayName" type="text" placeholder="Aapka Naam" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                            <input id="displayName" type="text" placeholder="Aapka Naam" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                         </div>
                         <div>
                             <label htmlFor="handle" className="block text-sm font-medium text-gray-400 mb-1">Username (@handle)</label>
-                            <input id="handle" type="text" placeholder="@unique_handle" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                            <input id="handle" type="text" placeholder="unique_handle" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" value={handle} onChange={(e) => setHandle(e.target.value)} />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="dob" className="block text-sm font-medium text-gray-400 mb-1">Janam Tithi (Age)</label>
-                            <input ref={dobInputRef} id="dob" type="date" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-gray-500 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                            <input id="dob" type="date" className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${dob ? 'text-white' : 'text-gray-500'}`} value={dob} onChange={(e) => setDob(e.target.value)} />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1">Gender</label>
-                            <div id="gender-container" className="flex flex-wrap gap-3">
-                                <button className="onboarding-tag-gender">Male</button>
-                                <button className="onboarding-tag-gender">Female</button>
-                                <button className="onboarding-tag-gender">Other</button>
+                            <div className="flex flex-wrap gap-3">
+                                {['Male', 'Female', 'Other'].map(g => (
+                                    <button 
+                                        key={g} 
+                                        className={`py-2 px-4 bg-gray-700 text-gray-300 rounded-full cursor-pointer transition-all duration-200 ease-in-out border-2 border-transparent hover:border-cyan-500 hover:text-white ${gender === g ? 'tag-selected' : ''}`}
+                                        onClick={() => setGender(g)}
+                                    >
+                                        {g}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>
-                     <Button className="w-full bg-cyan-500 hover:bg-cyan-600">Save & Continue</Button>
+                     <Button className="w-full bg-cyan-500 hover:bg-cyan-600" onClick={handleSave}>Save & Continue</Button>
                 </div>
             </div>
         </div>
