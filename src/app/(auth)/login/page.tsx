@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Mail,
   Smartphone,
@@ -19,7 +20,8 @@ import {
   createUserWithEmailAndPassword,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  ConfirmationResult
+  ConfirmationResult,
+  getAdditionalUserInfo,
 } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 
@@ -56,6 +58,7 @@ export default function LoginPage() {
   
   const auth = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
 
   const setupRecaptcha = () => {
     if (!auth) return;
@@ -94,12 +97,18 @@ export default function LoginPage() {
   const handleOtpVerify = async () => {
     if (!confirmationResult) return;
     try {
-      await confirmationResult.confirm(otp);
+      const result = await confirmationResult.confirm(otp);
+      const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
       toast({ title: "Successfully signed in!" });
       // Reset state
       setIsOtpSent(false);
       setOtp('');
       setPhone('');
+      if(isNewUser) {
+        router.push('/complete-profile');
+      } else {
+        router.push('/home');
+      }
     } catch (error: any) {
       console.error(error);
       toast({ variant: "destructive", title: "Invalid OTP", description: error.message });
@@ -110,8 +119,15 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     try {
       if (auth) {
-        await signInWithPopup(auth, provider);
-        toast({ title: `Successfully ${authMode === 'signin' ? 'signed in' : 'signed up'} with Google!` });
+        const result = await signInWithPopup(auth, provider);
+        const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
+
+        toast({ title: `Successfully ${isNewUser ? 'signed up' : 'signed in'} with Google!` });
+        if(isNewUser) {
+            router.push('/complete-profile');
+        } else {
+            router.push('/home');
+        }
       }
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -132,9 +148,11 @@ export default function LoginPage() {
       if (authMode === 'signin') {
         await signInWithEmailAndPassword(auth, email, password);
         toast({ title: "Successfully signed in!" });
+        router.push('/home');
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
         toast({ title: "Account created successfully!" });
+        router.push('/complete-profile');
       }
     } catch (error: any) {
       console.error(error);
