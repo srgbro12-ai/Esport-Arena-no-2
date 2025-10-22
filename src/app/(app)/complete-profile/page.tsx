@@ -128,7 +128,7 @@ export default function CompleteProfilePage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="displayName" className="block text-sm font-medium text-gray-400 mb-1">Display Name</label>
+                            <label htmlFor="displayName" className="block text-sm font-medium text-gray-400 mb-1">channel name</label>
                             <input id="displayName" type="text" placeholder="Aapka Naam" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
                         </div>
                         <div>
