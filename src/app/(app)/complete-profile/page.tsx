@@ -32,7 +32,7 @@ export default function CompleteProfilePage() {
     };
     
     const handleSave = () => {
-        updateProfile({ name: displayName, handle: `@${handle}` });
+        updateProfile({ name: displayName, handle: `@${handle}`, dob, gender });
         toast({
             title: "Profile completed!",
             description: "Welcome to Esport Arena!",

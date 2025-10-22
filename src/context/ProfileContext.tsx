@@ -19,6 +19,8 @@ interface Profile {
     description: string;
     email: string;
     links: Link[];
+    dob: string;
+    gender: string;
 }
 
 interface ProfileContextType {
@@ -40,7 +42,9 @@ const initialProfile: Profile = {
     bannerHint: 'abstract gaming',
     description: mockUser.description,
     email: 'srbrolive99@gmail.com',
-    links: [{ title: 'Instagram', url: 'https://instagram.com/srbrolive99' }]
+    links: [{ title: 'Instagram', url: 'https://instagram.com/srbrolive99' }],
+    dob: '',
+    gender: '',
 };
 
 export const ProfileProvider = ({ children }: { children: ReactNode }) => {

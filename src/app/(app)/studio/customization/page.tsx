@@ -17,14 +17,18 @@ import Link from 'next/link';
 export default function CustomizationPage() {
     const { toast } = useToast();
     const { profile, updateAvatar, updateBanner, updateProfile } = useProfile();
-    const [links, setLinks] = useState(profile.links);
-    const avatarInputRef = useRef<HTMLInputElement>(null);
-    const bannerInputRef = useRef<HTMLInputElement>(null);
-
+    
     const [name, setName] = useState(profile.name);
     const [handle, setHandle] = useState(profile.handle);
     const [description, setDescription] = useState(profile.description);
     const [contactEmail, setContactEmail] = useState(profile.email || '');
+    const [links, setLinks] = useState(profile.links);
+    const [dob, setDob] = useState(profile.dob);
+    const [gender, setGender] = useState(profile.gender);
+
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const bannerInputRef = useRef<HTMLInputElement>(null);
+
 
     const addLink = () => {
         if (links.length < 5) {
@@ -67,7 +71,7 @@ export default function CustomizationPage() {
     };
 
     const handlePublish = () => {
-        updateProfile({ name, handle, description, email: contactEmail, links });
+        updateProfile({ name, handle, description, email: contactEmail, links, dob, gender });
         toast({
             title: "Channel updated successfully!",
         });
@@ -214,6 +218,37 @@ export default function CustomizationPage() {
                                 <Input readOnly value={`https://mytube.com/channel/${profile.id}`} />
                                 <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(`https://mytube.com/channel/${profile.id}`)}><Copy className="h-4 w-4" /></Button>
                             </div>
+                        </CardContent>
+                    </Card>
+                    
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Date of Birth</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Gender</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                             <RadioGroup value={gender} onValueChange={setGender} className="flex gap-4">
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="male" id="male" />
+                                    <Label htmlFor="male">Male</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="female" id="female" />
+                                    <Label htmlFor="female">Female</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="other" id="other" />
+                                    <Label htmlFor="other">Other</Label>
+                                </div>
+                             </RadioGroup>
                         </CardContent>
                     </Card>
 
