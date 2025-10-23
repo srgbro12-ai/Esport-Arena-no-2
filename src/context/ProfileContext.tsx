@@ -29,6 +29,8 @@ interface ProfileContextType {
     updateAvatar: (url: string) => void;
     updateBanner: (url: string) => void;
     updateProfile: (updates: Partial<Omit<Profile, 'id'>>) => void;
+    targetUser: any,
+    setTargetUser: Dispatch<SetStateAction<any>>;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
@@ -48,8 +50,9 @@ const initialProfile: Profile = {
     gender: '',
 };
 
-export const ProfileProvider = ({ children }: { children: ReactNode }) => {
+export const ProfileProvider = ({ children, initialTargetUser }: { children: ReactNode, initialTargetUser?: any }) => {
     const [profile, setProfile] = useState<Profile>(initialProfile);
+    const [targetUser, setTargetUser] = useState(initialTargetUser || null);
 
     const updateAvatar = (url: string) => {
         setProfile(p => ({ ...p, avatarUrl: url }));
@@ -64,7 +67,7 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <ProfileContext.Provider value={{ profile, setProfile, updateAvatar, updateBanner, updateProfile }}>
+        <ProfileContext.Provider value={{ profile, setProfile, updateAvatar, updateBanner, updateProfile, targetUser, setTargetUser }}>
             {children}
         </ProfileContext.Provider>
     );

@@ -1,40 +1,44 @@
-'use client';
+
 import { ReactNode } from 'react';
-import { usePathname, useParams } from 'next/navigation';
-import Link from 'next/link';
-import { ChannelHeader } from '@/components/channel/channel-header';
-import { cn } from '@/lib/utils';
+import { ProfileProvider } from '@/context/ProfileContext';
+import { initializeFirebase } from '@/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
-const TABS = [
-    { name: 'Home', href: '' },
-    { name: 'Videos', href: '/videos' },
-    { name: 'Shorts', href: '/shorts' },
-    { name: 'Live', href: '/live' },
-    { name: 'Playlists', href: '/playlists' },
-    { name: 'Posts', href: '/posts' },
-    { name: 'Membership', href: '/membership' },
-    { name: 'Game IDs', href: '/game-ids' },
-    { name: 'Account', href: '/account' },
-];
+async function getTargetUser(username: string) {
+    try {
+        const { firestore } = initializeFirebase();
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where('username', '==', username));
+        const querySnapshot = await getDocs(q);
 
-export default function ChannelLayout({ children }: { children: ReactNode }) {
-    const pathname = usePathname();
-    const params = useParams();
-    const username = params.username as string;
-
-    const getIsActive = (href: string) => {
-        const basePath = `/channel/${username}`;
-        const fullHref = `${basePath}${href}`;
-        if (href === '') {
-            return pathname === basePath;
+        if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            return { id: userDoc.id, ...userDoc.data() };
         }
-        return pathname.startsWith(fullHref);
-    };
+        return null;
+    } catch (error) {
+        console.error("Error fetching target user:", error);
+        // In a real app, you might want to handle this more gracefully
+        // For now, we return null, and the page will show a "not found" state.
+        return null;
+    }
+}
 
+
+export default async function ChannelLayout({ 
+    children,
+    params
+}: { 
+    children: ReactNode,
+    params: { username: string } 
+}) {
+    const targetUser = await getTargetUser(params.username);
+    
     return (
-        <div className="flex flex-col min-h-screen">
-            <ChannelHeader />
-            <main className="flex-1 p-4 md:p-8">{children}</main>
-        </div>
+        <ProfileProvider initialTargetUser={targetUser}>
+            <div className="flex flex-col min-h-screen">
+                <main className="flex-1 p-4 md:p-8">{children}</main>
+            </div>
+        </ProfileProvider>
     );
 }

@@ -69,40 +69,9 @@ export default function ChannelPageComponent({
   const firestore = useFirestore();
   const router = useRouter();
 
-  const [targetUser, setTargetUser] = useState<any>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      if (!firestore || !channelUsername) return;
-      setIsLoadingUser(true);
-      try {
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where('username', '==', channelUsername));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          const userData = querySnapshot.docs[0].data();
-          setTargetUser({ id: querySnapshot.docs[0].id, ...userData });
-        } else {
-          setTargetUser(null);
-        }
-      } catch (error) {
-        const permissionError = new FirestorePermissionError({
-          path: `users`,
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setTargetUser(null);
-      } finally {
-        setIsLoadingUser(false);
-      }
-    };
-    fetchUser();
-  }, [firestore, channelUsername]);
+  const { targetUser, profile, updateAvatar, updateBanner, updateProfile, setProfile, setTargetUser } = useProfile();
   
-  const { profile, updateAvatar, updateBanner, updateProfile, setProfile } = useProfile();
-
-  const isLoading = isUserLoading || isLoadingUser;
+  const isLoading = isUserLoading;
 
   const isMyChannel = currentUser?.uid === targetUser?.id;
 
@@ -636,6 +605,3 @@ export default function ChannelPageComponent({
     </div>
   );
 }
-
-    
-    

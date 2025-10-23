@@ -173,7 +173,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname.startsWith(`/channel`)} tooltip={{children: 'My Channel'}}>
-                <Link href={channelUsername ? `/channel/${channelUsername}` : (user ? '/complete-profile' : '/login')}>
+                <Link href={user && profile.handle ? `/channel/${profile.handle.replace('@', '')}` : (user ? '/complete-profile' : '/login')}>
                 <User className="icon-glow" />
                 <span>My Channel</span>
               </Link>
