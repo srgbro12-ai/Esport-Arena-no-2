@@ -2,12 +2,10 @@ import React, { Suspense } from 'react';
 import ChannelPageComponent from './channel-page-client';
 
 // This is now a Server Component. It can fetch data.
-export default function Page({ params }: { params: { username: string } }) {
+export default async function Page({ params }: { params: { username: string } }) {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <ChannelPageComponent username={params.username} />
     </Suspense>
   );
 }
-
-    
