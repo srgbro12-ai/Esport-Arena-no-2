@@ -53,7 +53,7 @@ import { cn } from '@/lib/utils';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
 import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, doc, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, updateDoc, setDoc } from 'firebase/firestore';
 
 export default function ChannelPageComponent({
   username: channelUsername,
@@ -69,9 +69,57 @@ export default function ChannelPageComponent({
   const firestore = useFirestore();
   const router = useRouter();
 
-  const { targetUser, profile, updateAvatar, updateBanner, updateProfile, setProfile } = useProfile();
-  
+  const { profile, updateAvatar, updateBanner } = useProfile();
+  const [targetUser, setTargetUser] = useState<any>(null);
+  const [isFetchingTargetUser, setIsFetchingTargetUser] = useState(true);
+
   const isMyChannel = currentUser?.uid === targetUser?.id;
+
+  useEffect(() => {
+    if (!firestore || !channelUsername) return;
+
+    // If the channel is the current user's, we can use the profile context directly
+    if (currentUser && profile.handle === `@${channelUsername}`) {
+        // Construct a targetUser object from the profile for consistency
+        setTargetUser({
+            id: currentUser.uid,
+            ...profile,
+            username: channelUsername,
+            displayName: profile.name,
+        });
+        setIsFetchingTargetUser(false);
+        return;
+    }
+    
+    // Otherwise, fetch the target user's profile
+    const fetchUser = async () => {
+        setIsFetchingTargetUser(true);
+        try {
+            const usersRef = collection(firestore, 'users');
+            const q = query(usersRef, where('username', '==', channelUsername));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0];
+                setTargetUser({ id: userDoc.id, ...userDoc.data() });
+            } else {
+                setTargetUser(null);
+            }
+        } catch (error) {
+            const permissionError = new FirestorePermissionError({
+              path: `users`,
+              operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            setTargetUser(null);
+        } finally {
+            setIsFetchingTargetUser(false);
+        }
+    };
+
+    fetchUser();
+  }, [firestore, channelUsername, currentUser, profile]);
+
 
   const channelInfo = isMyChannel ? {
       id: profile.id,
@@ -90,7 +138,7 @@ export default function ChannelPageComponent({
   } : {
       id: targetUser?.id,
       name: targetUser?.displayName,
-      handle: `@${targetUser?.username}`,
+      handle: targetUser?.username ? `@${targetUser.username}` : '',
       username: targetUser?.username,
       avatarUrl: targetUser?.avatarUrl || 'https://placehold.co/128x128.png',
       dataAiHint: 'user avatar',
@@ -104,7 +152,7 @@ export default function ChannelPageComponent({
   };
 
 
-  if (isUserLoading) {
+  if (isUserLoading || isFetchingTargetUser) {
     return <div className="text-center p-10">Loading channel...</div>;
   }
 
@@ -131,43 +179,59 @@ export default function ChannelPageComponent({
 
   const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
- const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && firestore && currentUser && isMyChannel) {
       const reader = new FileReader();
-      reader.onload = async () => {
+      reader.onload = () => {
         const newAvatarUrl = reader.result as string;
         updateAvatar(newAvatarUrl); // Optimistic UI update
         const userRef = doc(firestore, 'users', currentUser.uid);
-        try {
-          await updateDoc(userRef, { avatarUrl: newAvatarUrl });
-          toast({ title: 'Profile picture updated!' });
-        } catch (error) {
-          console.error(error);
-          toast({ title: 'Failed to update picture', variant: 'destructive' });
-          updateAvatar(profile.avatarUrl); // Revert on failure
-        }
+        
+        const dataToUpdate = { avatarUrl: newAvatarUrl };
+        // NON-BLOCKING
+        setDoc(userRef, dataToUpdate, { merge: true })
+          .catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: dataToUpdate,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            // Revert optimistic update on failure
+            updateAvatar(profile.avatarUrl); 
+          });
+        
+        toast({ title: 'Profile picture update started!' });
       };
       reader.readAsDataURL(file);
     }
   };
   
-  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && firestore && currentUser && isMyChannel) {
       const reader = new FileReader();
-      reader.onload = async () => {
+      reader.onload = () => {
         const newBannerUrl = reader.result as string;
         updateBanner(newBannerUrl); // Optimistic UI update
         const userRef = doc(firestore, 'users', currentUser.uid);
-        try {
-          await updateDoc(userRef, { bannerUrl: newBannerUrl });
-          toast({ title: 'Channel banner updated!' });
-        } catch (error) {
-          console.error(error);
-          toast({ title: 'Failed to update banner', variant: 'destructive' });
-          updateBanner(profile.bannerUrl); // Revert on failure
-        }
+        
+        const dataToUpdate = { bannerUrl: newBannerUrl };
+        // NON-BLOCKING
+        setDoc(userRef, dataToUpdate, { merge: true })
+          .catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+              path: userRef.path,
+              operation: 'update',
+              requestResourceData: dataToUpdate,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            // Revert optimistic update
+            updateBanner(profile.bannerUrl);
+          });
+          
+        toast({ title: 'Channel banner update started!' });
       };
       reader.readAsDataURL(file);
     }
@@ -236,7 +300,7 @@ export default function ChannelPageComponent({
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                               </span>
-                              {(targetUser.subscriberCount || 0).toLocaleString()} Subscribers
+                              {(targetUser?.subscriberCount || 0).toLocaleString()} Subscribers
                           </Link>
                       ) : (
                           <span>{channelInfo.subscribers}</span>
@@ -602,5 +666,3 @@ export default function ChannelPageComponent({
     </div>
   );
 }
-
-    
