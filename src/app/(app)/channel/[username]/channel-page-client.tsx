@@ -69,21 +69,22 @@ export default function ChannelPageComponent({
   const firestore = useFirestore();
   const router = useRouter();
 
-  const [targetUserId, setTargetUserId] = useState<string | null>(null);
-  const [isLoadingUserId, setIsLoadingUserId] = useState(true);
+  const [targetUser, setTargetUser] = useState<any>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
 
   useEffect(() => {
-    const fetchUserId = async () => {
+    const fetchUser = async () => {
       if (!firestore || !channelUsername) return;
-      setIsLoadingUserId(true);
+      setIsLoadingUser(true);
       try {
         const usersRef = collection(firestore, 'users');
         const q = query(usersRef, where('username', '==', channelUsername));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
-          setTargetUserId(querySnapshot.docs[0].id);
+          const userData = querySnapshot.docs[0].data();
+          setTargetUser({ id: querySnapshot.docs[0].id, ...userData });
         } else {
-          setTargetUserId(null); // No user found with that username
+          setTargetUser(null);
         }
       } catch (error) {
         const permissionError = new FirestorePermissionError({
@@ -91,69 +92,45 @@ export default function ChannelPageComponent({
           operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        setTargetUserId(null);
+        setTargetUser(null);
       } finally {
-        setIsLoadingUserId(false);
+        setIsLoadingUser(false);
       }
     };
-    fetchUserId();
+    fetchUser();
   }, [firestore, channelUsername]);
-
-  const channelRef = useMemoFirebase(() => {
-    if (!firestore || !targetUserId) return null;
-    return doc(firestore, 'users', targetUserId, 'channel', targetUserId);
-  }, [firestore, targetUserId]);
-
-  const { data: channel, isLoading: isChannelLoading } = useDoc<{
-        channelName: string;
-        handle: string;
-        avatarUrl: string;
-        bannerUrl: string;
-        channelDescription: string;
-        verificationBadge: boolean;
-        subscriberCount: number;
-        videoCount: number;
-        links: any[];
-    }>(channelRef);
-
+  
   const { profile, updateAvatar, updateBanner, updateProfile, setProfile } = useProfile();
 
-  const [liveSubscriberCount, setLiveSubscriberCount] = useState(0);
+  const isLoading = isUserLoading || isLoadingUser;
 
-  const isLoading = isUserLoading || isChannelLoading || isLoadingUserId;
-
-  const isMyChannel = currentUser?.uid === targetUserId;
+  const isMyChannel = currentUser?.uid === targetUser?.id;
 
   useEffect(() => {
-    if (isMyChannel && channel) {
+    if (isMyChannel && targetUser) {
       setProfile({
-        id: targetUserId || '',
-        name: channel.channelName || '',
-        handle: channel.handle || '',
-        avatarUrl: channel.avatarUrl || 'https://placehold.co/128x128.png',
-        bannerUrl: channel.bannerUrl || 'https://placehold.co/1080x240.png',
-        description: channel.channelDescription || '',
+        id: targetUser.id || '',
+        name: targetUser.displayName || '',
+        handle: targetUser.username || '',
+        avatarUrl: targetUser.avatarUrl || 'https://placehold.co/128x128.png',
+        bannerUrl: targetUser.bannerUrl || 'https://placehold.co/1080x240.png',
+        description: targetUser.description || '',
         email: currentUser?.email || '',
-        links: channel.links || [],
-        dob: '', // Assuming dob/gender are not in channel doc
-        gender: '',
+        links: targetUser.links || [],
+        dob: targetUser.dob || '',
+        gender: targetUser.gender || '',
         dataAiHint: 'user avatar',
         bannerHint: 'channel banner'
       });
     }
-  }, [channel, isMyChannel, currentUser, targetUserId, setProfile]);
+  }, [targetUser, isMyChannel, currentUser, setProfile]);
 
-  useEffect(() => {
-    if (channel) {
-        setLiveSubscriberCount(channel.subscriberCount || 0);
-    }
-  }, [channel]);
 
   if (isLoading) {
     return <div className="text-center p-10">Loading channel...</div>;
   }
 
-  if (!channel) {
+  if (!targetUser || !targetUser.displayName) { // Check if channel is created by looking for displayName
     if (isMyChannel) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-center p-10">
@@ -167,26 +144,26 @@ export default function ChannelPageComponent({
   }
   
   const channelData = {
-    name: channel.channelName,
-    handle: channel.handle,
-    avatarUrl: channel.avatarUrl || 'https://placehold.co/128x128.png',
+    name: targetUser.displayName,
+    handle: `@${targetUser.username}`,
+    avatarUrl: targetUser.avatarUrl || 'https://placehold.co/128x128.png',
     dataAiHint: 'user avatar',
-    bannerUrl: channel.bannerUrl || 'https://placehold.co/1080x240.png',
+    bannerUrl: targetUser.bannerUrl || 'https://placehold.co/1080x240.png',
     bannerHint: 'channel banner',
-    description: channel.channelDescription,
-    isVerified: channel.verificationBadge,
-    subscribers: `${(liveSubscriberCount || 0).toLocaleString()} Subscribers`,
-    videoCount: channel.videoCount || 0,
-    links: channel.links || [],
+    description: targetUser.description,
+    isVerified: targetUser.isVerified,
+    subscribers: `${(targetUser.subscriberCount || 0).toLocaleString()} Subscribers`,
+    videoCount: targetUser.videoCount || 0,
+    links: targetUser.links || [],
   };
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  const channelVideos = videos.filter(video => video.channelId === channelUsername);
-  const channelShorts = shorts.filter(short => short.channelId === channelUsername);
-  const channelPosts = posts.filter(post => post.channelId === channelUsername);
-  const channelLiveStreams = videos.filter(video => video.channelId === channelUsername && video.isLive);
+  const channelVideos = videos.filter(video => video.channelId === targetUser.id);
+  const channelShorts = shorts.filter(short => short.channelId === targetUser.id);
+  const channelPosts = posts.filter(post => post.channelId === targetUser.id);
+  const channelLiveStreams = videos.filter(video => video.channelId === targetUser.id && video.isLive);
 
   const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
@@ -197,9 +174,9 @@ export default function ChannelPageComponent({
       reader.onload = async () => {
         const newAvatarUrl = reader.result as string;
         updateAvatar(newAvatarUrl); // Optimistic UI update
-        const userChannelRef = doc(firestore, 'users', currentUser.uid, 'channel', currentUser.uid);
+        const userRef = doc(firestore, 'users', currentUser.uid);
         try {
-          await updateDoc(userChannelRef, { avatarUrl: newAvatarUrl });
+          await updateDoc(userRef, { avatarUrl: newAvatarUrl });
           toast({ title: 'Profile picture updated!' });
         } catch (error) {
           console.error(error);
@@ -218,9 +195,9 @@ export default function ChannelPageComponent({
       reader.onload = async () => {
         const newBannerUrl = reader.result as string;
         updateBanner(newBannerUrl); // Optimistic UI update
-        const userChannelRef = doc(firestore, 'users', currentUser.uid, 'channel', currentUser.uid);
+        const userRef = doc(firestore, 'users', currentUser.uid);
         try {
-          await updateDoc(userChannelRef, { bannerUrl: newBannerUrl });
+          await updateDoc(userRef, { bannerUrl: newBannerUrl });
           toast({ title: 'Channel banner updated!' });
         } catch (error) {
           console.error(error);
@@ -294,7 +271,7 @@ export default function ChannelPageComponent({
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                             </span>
-                            {liveSubscriberCount.toLocaleString()} Subscribers
+                            {(targetUser.subscriberCount || 0).toLocaleString()} Subscribers
                         </Link>
                     ) : (
                         <span>{channelData.subscribers}</span>
@@ -660,4 +637,5 @@ export default function ChannelPageComponent({
   );
 }
 
+    
     

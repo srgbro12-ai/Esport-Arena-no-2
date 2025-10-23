@@ -25,8 +25,10 @@ export default function CompleteProfilePage() {
 
      useEffect(() => {
         if (user) {
+            // Do not set profile from user object anymore to avoid pre-filling
+            // Only use user object to get default avatar if available
             setProfile(prev => ({ ...prev, avatarUrl: user.photoURL || 'https://placehold.co/128x128.png' }));
-            setDisplayName(user.displayName || '');
+            // Pre-fill handle suggestion based on email
             setHandle(user.email?.split('@')[0] || '');
         }
     }, [user, setProfile]);
@@ -55,34 +57,38 @@ export default function CompleteProfilePage() {
             return;
         }
 
-        const newProfileData = {
-             name: displayName, 
-             handle: `@${handle}`, 
-             dob, 
-             gender,
-             avatarUrl: profile.avatarUrl,
+        const profileData = {
+            id: user.uid,
+            email: user.email,
+            displayName: displayName, 
+            username: handle,
+            avatarUrl: profile.avatarUrl,
+            bannerUrl: 'https://placehold.co/1080x240.png',
+            description: `Welcome to the channel of ${displayName}!`,
+            isVerified: false,
+            subscriberCount: 0,
+            videoCount: 0,
+            links: [],
+            dob: dob, 
+            gender: gender,
+            joinDate: new Date().toISOString(),
         };
-        updateProfile(newProfileData);
 
         try {
-            const channelRef = doc(firestore, 'users', user.uid, 'channel', user.uid);
-            await setDoc(channelRef, {
-                channelName: displayName,
+            const userRef = doc(firestore, 'users', user.uid);
+            await setDoc(userRef, profileData, { merge: true });
+
+            // Update local profile context
+            updateProfile({
+                name: displayName,
                 handle: `@${handle}`,
                 avatarUrl: profile.avatarUrl,
-                bannerUrl: 'https://placehold.co/1080x240.png',
-                channelDescription: `Welcome to the channel of ${displayName}!`,
-                verificationBadge: false,
-                subscriberCount: 0,
-                videoCount: 0,
-                links: [],
-                userId: user.uid,
+                dob,
+                gender,
+                description: profileData.description,
+                email: user.email || '',
+                links: []
             });
-
-            // Also update the main user document with the new username/handle
-            const userRef = doc(firestore, 'users', user.uid);
-            await setDoc(userRef, { username: handle }, { merge: true });
-
 
             toast({
                 title: "Channel created!",
@@ -91,7 +97,7 @@ export default function CompleteProfilePage() {
             router.push(`/channel/${handle}`);
         } catch (error) {
             console.error("Error creating channel: ", error);
-            toast({ title: 'Failed to create channel', variant: 'destructive' });
+            toast({ title: 'Failed to create channel', description: (error as Error).message, variant: 'destructive' });
         }
     };
 
@@ -192,3 +198,5 @@ export default function CompleteProfilePage() {
         </div>
     );
 }
+
+    

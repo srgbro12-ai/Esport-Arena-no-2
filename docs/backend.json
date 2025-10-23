@@ -4,15 +4,19 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user profile in the Esport Arena application.",
+      "description": "Represents a user profile and their channel in the Esport Arena application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user profile."
+          "description": "Unique identifier for the user profile (matches Firebase Auth UID)."
         },
         "username": {
           "type": "string",
-          "description": "The user's chosen username."
+          "description": "The user's chosen unique handle (e.g., @srbrolive99)."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name or channel name."
         },
         "email": {
           "type": "string",
@@ -23,24 +27,63 @@
           "type": "string",
           "description": "The user's phone number."
         },
-        "referralCode": {
+        "avatarUrl": {
           "type": "string",
-          "description": "The user's referral code."
+          "description": "URL to the user's profile picture/avatar.",
+          "format": "uri"
         },
-        "profilePicture": {
+        "bannerUrl": {
           "type": "string",
-          "description": "URL to the user's profile picture.",
+          "description": "URL to the user's channel banner image.",
           "format": "uri"
         },
         "joinDate": {
           "type": "string",
           "description": "Date and time when the user joined the platform.",
           "format": "date-time"
+        },
+        "description": {
+          "type": "string",
+          "description": "The user's channel description or bio."
+        },
+        "dob": {
+          "type": "string",
+          "description": "Date of birth of the user.",
+          "format": "date"
+        },
+        "gender": {
+          "type": "string",
+          "description": "Gender of the user."
+        },
+        "links": {
+            "type": "array",
+            "description": "Social media or other external links.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "url": {"type": "string", "format": "uri"}
+                },
+                "required": ["title", "url"]
+            }
+        },
+        "subscriberCount": {
+            "type": "number",
+            "description": "Number of subscribers the channel has."
+        },
+        "videoCount": {
+            "type": "number",
+            "description": "Number of videos uploaded to the channel."
+        },
+        "isVerified": {
+            "type": "boolean",
+            "description": "Indicates if the channel has a verification badge."
         }
       },
       "required": [
         "id",
         "username",
+        "displayName",
         "email"
       ]
     },
@@ -226,57 +269,6 @@
         "tournamentId"
       ]
     },
-    "Channel": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Channel",
-      "type": "object",
-      "description": "Represents a user's channel.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the channel."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 Channel)"
-        },
-        "bannerUrl": {
-          "type": "string",
-          "description": "URL to the channel banner.",
-          "format": "uri"
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "URL to the channel avatar.",
-          "format": "uri"
-        },
-        "channelDescription": {
-          "type": "string",
-          "description": "Description of the channel."
-        },
-        "instagramLink": {
-          "type": "string",
-          "description": "Link to the channel's Instagram profile.",
-          "format": "uri"
-        },
-        "subscriberCount": {
-          "type": "number",
-          "description": "Number of subscribers the channel has."
-        },
-        "videoCount": {
-          "type": "number",
-          "description": "Number of videos uploaded to the channel."
-        },
-        "verificationBadge": {
-          "type": "boolean",
-          "description": "Indicates if the channel has a verification badge."
-        }
-      },
-      "required": [
-        "id",
-        "userId"
-      ]
-    },
     "Video": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Video",
@@ -289,7 +281,7 @@
         },
         "channelId": {
           "type": "string",
-          "description": "Reference to Channel. (Relationship: Channel 1:N Video)"
+          "description": "Reference to UserProfile (who owns the video). (Relationship: UserProfile 1:N Video)"
         },
         "title": {
           "type": "string",
@@ -666,7 +658,7 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores user profile information. The userId is used for path-based ownership.",
+          "description": "Stores user profile and channel information. The userId is used for path-based ownership.",
           "params": [
             {
               "name": "userId",
@@ -764,29 +756,13 @@
         }
       },
       {
-        "path": "/users/{userId}/channel",
-        "definition": {
-          "entityName": "Channel",
-          "schema": {
-            "$ref": "#/backend/entities/Channel"
-          },
-          "description": "Stores channel information for a user. Includes denormalized 'userId' for authorization independence.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/channel/videos/{videoId}",
+        "path": "/users/{userId}/videos/{videoId}",
         "definition": {
           "entityName": "Video",
           "schema": {
             "$ref": "#/backend/entities/Video"
           },
-          "description": "Stores video information for a channel. Includes denormalized 'userId' from the parent 'channel' document for authorization independence.",
+          "description": "Stores video information for a user's channel. The userId in the path ensures ownership.",
           "params": [
             {
               "name": "userId",
@@ -940,7 +916,8 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to ensure security, scalability, and debuggability, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User-owned data is stored in hierarchical paths under the `/users/{userId}` collection, ensuring clear ownership. Collaborative data utilizes membership maps for authorization. Denormalization is extensively used to avoid `get()` calls in security rules, enabling atomic operations and simplifying security logic.\n\nSpecifically:\n\n*   **User Profiles & Related Data:** User profiles and their associated wallets, channels, delivery addresses, and orders are nested under `/users/{userId}`. This establishes clear ownership and simplifies security rules. The Wallet, Channel, DeliveryAddress and Order documents store the userId for authorization independence.\n*   **Tournaments and Matches:** Tournaments are stored in a top-level `/tournaments` collection. Matches associated with each tournament are stored in a subcollection `/tournaments/{tournamentId}/matches`. Participant documents contain the denormalized tournamentId.\n*   **Store Items:** Store items are placed in a top-level `/store_items` collection, assuming global availability and consistent access control.\n*   **Chat and Friendship:** Chat messages are stored in a `/chat_messages` collection, enabling direct messaging between users.  Friendships are stored in a `/friendships` collection.\n*   **Leaderboards:** Leaderboards are stored in a top-level `/leaderboards` collection. Leaderboard entries are stored in a subcollection `/leaderboards/{leaderboardId}/entries`.\n*   **Notifications:** Notifications are stored in a `/users/{userId}/notifications` collection. This ensures that only the user can access their notifications.\n\nThis structure facilitates QAPs by:\n\n*   **Segregation:** Separating user-owned data from global data (e.g., store items, tournaments) allows for distinct security rules.\n*   **Membership Maps/Ownership:** Using path-based ownership (`/users/{userId}`) and denormalized `userId` attributes allows for secure listing of resources."
+    "reasoning": "The Firestore structure has been simplified by merging the Channel entity into the UserProfile entity. This eliminates the 'channel' sub-collection and stores all user-related profile and channel data in a single document at `/users/{userId}`. This simplifies data fetching, updates, and security rules. Other collections remain as they were, following principles of Authorization Independence and clear ownership."
   }
 }
+
     
