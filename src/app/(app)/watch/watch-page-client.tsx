@@ -1,6 +1,7 @@
+
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useContent } from '@/context/content-context';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -8,48 +9,59 @@ import { Button } from '@/components/ui/button';
 import { ThumbsUp, ThumbsDown, Share2, Download, MoreHorizontal } from 'lucide-react';
 import { VideoCard } from '@/components/video-card';
 import Link from 'next/link';
-import { mockUser } from '@/lib/mock-data';
-
-const getChannelInfo = (channelId: string, getSubscriberCount: (id: string) => number) => {
-    const formatSubscribers = (num: number) => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return Math.floor(num).toLocaleString();
-    };
-
-    if (channelId === mockUser.username) {
-        return {
-            name: mockUser.name,
-            avatarUrl: mockUser.avatarUrl,
-            subscribers: formatSubscribers(getSubscriberCount(channelId)),
-        }
-    }
-    // In a real app, you'd fetch this from a DB
-    return {
-        name: channelId,
-        avatarUrl: 'https://placehold.co/48x48.png',
-        subscribers: formatSubscribers(getSubscriberCount(channelId)),
-    }
-}
-
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 export default function WatchPageClient() {
     const searchParams = useSearchParams();
     const videoId = searchParams.get('v');
-    const { videos, shorts, getSubscriberCount } = useContent();
+    const { videos, shorts } = useContent();
+    const firestore = useFirestore();
 
     const allVideos = [...videos, ...shorts];
     const currentVideo = allVideos.find(v => v.id === videoId);
-    
+
+    const channelDocRef = useMemoFirebase(() => {
+        if (!firestore || !currentVideo?.channelId) return null;
+        return doc(firestore, 'users', currentVideo.channelId);
+    }, [firestore, currentVideo?.channelId]);
+
+    const { data: channelUser, isLoading: isChannelLoading } = useDoc(channelDocRef);
+
     const suggestedVideos = allVideos.filter(v => v.id !== videoId);
 
     if (!currentVideo) {
         return <div className="flex-1 text-center p-10">Video not found.</div>;
     }
+    
+    const getChannelInfo = () => {
+        if (isChannelLoading) {
+            return { name: 'Loading...', avatarUrl: '', subscribers: '...', username: '' };
+        }
+        if (channelUser) {
+            const num = channelUser.subscriberCount || 0;
+            const formatSubscribers = (num: number) => {
+                if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+                if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+                return Math.floor(num).toLocaleString();
+            };
+            return {
+                name: channelUser.displayName,
+                avatarUrl: channelUser.avatarUrl || 'https://placehold.co/48x48.png',
+                subscribers: formatSubscribers(num),
+                username: channelUser.username,
+            };
+        }
+        return {
+            name: currentVideo.channelId,
+            avatarUrl: 'https://placehold.co/48x48.png',
+            subscribers: '0',
+            username: currentVideo.channelId,
+        };
+    };
 
-    const channelInfo = getChannelInfo(currentVideo.channelId, getSubscriberCount);
+    const channelInfo = getChannelInfo();
 
-    // This is a mock source. In a real app, this would come from the video data.
     const videoSrc = currentVideo.thumbnailUrl ? currentVideo.thumbnailUrl.replace(/(\d+)\/(\d+)/, '1280/720') : 'https://placehold.co/1280x720.png';
 
 
@@ -66,14 +78,14 @@ export default function WatchPageClient() {
                 <h1 className="text-xl font-bold mb-2">{currentVideo.title}</h1>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-center gap-3">
-                         <Link href={`/channel/${currentVideo.channelId}`}>
+                         <Link href={`/channel/${channelInfo.username}`}>
                             <Avatar>
                                 <AvatarImage src={channelInfo.avatarUrl} />
                                 <AvatarFallback>{channelInfo.name.charAt(0)}</AvatarFallback>
                             </Avatar>
                         </Link>
                         <div>
-                            <Link href={`/channel/${currentVideo.channelId}`} className="font-semibold hover:underline">{channelInfo.name}</Link>
+                            <Link href={`/channel/${channelInfo.username}`} className="font-semibold hover:underline">{channelInfo.name}</Link>
                             <p className="text-xs text-muted-foreground">{channelInfo.subscribers} subscribers</p>
                         </div>
                         <Button variant="secondary" className='ml-4'>Subscribe</Button>
