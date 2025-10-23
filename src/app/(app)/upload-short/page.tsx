@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Film, Upload } from "lucide-react";
 import { useContent } from '@/context/content-context';
 import { useToast } from '@/hooks/use-toast';
-import { mockUser } from '@/lib/mock-data';
+import { useProfile } from '@/context/ProfileContext';
+import { useUser } from '@/firebase';
 
 export default function UploadShortPage() {
   const [shortFile, setShortFile] = useState<File | null>(null);
@@ -16,6 +17,8 @@ export default function UploadShortPage() {
   const { addShort } = useContent();
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
+  const { profile } = useProfile();
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -39,16 +42,22 @@ export default function UploadShortPage() {
         toast({ title: "Please select a file", variant: "destructive" });
         return;
     }
+
+    if (!user) {
+        toast({ title: "You must be logged in to upload a short", variant: "destructive" });
+        return;
+    }
     
     addShort({
         title: shortFile.name.replace(/\.[^/.]+$/, ""),
-        channelId: mockUser.username,
+        channelId: user.uid,
         thumbnailUrl: URL.createObjectURL(shortFile),
         dataAiHint: 'short video',
     });
 
     toast({ title: "Short uploaded successfully!" });
-    router.push(`/channel/${mockUser.username}?tab=shorts`);
+    const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+    router.push(`/channel/${channelUsername}?tab=shorts`);
   };
 
   if (shortFile) {

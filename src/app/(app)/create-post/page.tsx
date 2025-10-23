@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PlusSquare } from "lucide-react";
 import { useContent } from "@/context/content-context";
 import { useToast } from "@/hooks/use-toast";
-import { mockUser } from "@/lib/mock-data";
+import { useProfile } from "@/context/ProfileContext";
+import { useUser } from "@/firebase";
 
 
 export default function CreatePostPage() {
@@ -16,6 +17,8 @@ export default function CreatePostPage() {
     const { addPost } = useContent();
     const router = useRouter();
     const { toast } = useToast();
+    const { user } = useUser();
+    const { profile } = useProfile();
 
     const handlePost = () => {
         if (!content.trim()) {
@@ -26,16 +29,22 @@ export default function CreatePostPage() {
             return;
         }
 
+        if (!user) {
+            toast({ title: "You must be logged in to create a post", variant: "destructive" });
+            return;
+        }
+
         addPost({
             content,
-            channelId: mockUser.username,
+            channelId: user.uid,
         });
 
         toast({
             title: "Post created!",
         });
-
-        router.push(`/channel/${mockUser.username}?tab=posts`);
+        
+        const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+        router.push(`/channel/${channelUsername}?tab=posts`);
     }
 
   return (

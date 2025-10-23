@@ -24,7 +24,8 @@ import { useRouter } from 'next/navigation';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { CreatePlaylistDialog } from '@/components/channel/CreatePlaylistDialog';
 import { useContent } from '@/context/content-context';
-import { mockUser } from '@/lib/mock-data';
+import { useProfile } from '@/context/ProfileContext';
+import { useUser } from '@/firebase';
 
 const uploadVideoSchema = z.object({
   title: z.string().min(1, { message: "Title is required." }),
@@ -52,6 +53,8 @@ export default function UploadPage() {
   const { toast } = useToast();
   const router = useRouter();
   
+  const { user } = useUser();
+  const { profile } = useProfile();
   const { addVideo, playlists, addPlaylist } = useContent();
 
   const form = useForm<z.infer<typeof uploadVideoSchema>>({
@@ -103,10 +106,19 @@ export default function UploadPage() {
         });
         return;
     }
+    
+    if (!user) {
+        toast({
+            title: "Authentication Error",
+            description: "You must be logged in to upload a video.",
+            variant: "destructive",
+        });
+        return;
+    }
 
     addVideo({
       title: data.title,
-      channelId: mockUser.username,
+      channelId: user.uid,
       thumbnailUrl: thumbnailFile ? URL.createObjectURL(thumbnailFile) : 'https://placehold.co/600x400.png',
       dataAiHint: data.description?.split(' ').slice(0, 2).join(' ') || 'uploaded video',
     });
@@ -115,8 +127,9 @@ export default function UploadPage() {
         title: "Video Uploaded Successfully!",
         description: "Your video details have been saved.",
     });
-
-    router.push(`/channel/${mockUser.username}?tab=videos`);
+    
+    const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+    router.push(`/channel/${channelUsername}?tab=videos`);
   }
 
   const videoSrc = videoFile ? URL.createObjectURL(videoFile) : '';

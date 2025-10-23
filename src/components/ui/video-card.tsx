@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from './avatar';
-import { mockUser } from '@/lib/mock-data';
+import { useProfile } from '@/context/ProfileContext';
 
 type VideoCardProps = {
   video: {
@@ -17,23 +17,26 @@ type VideoCardProps = {
 };
 
 
-const getChannelInfo = (channelId: string) => {
-    if (channelId === mockUser.username) {
+const getChannelInfo = (channelId: string, profile: any) => {
+    // This is a simplified logic. In a real app, you'd have a more robust way
+    // to get any user's info, not just the currently logged in one.
+    if (channelId === profile.id) {
         return {
-            name: mockUser.name,
-            avatarUrl: mockUser.avatarUrl,
+            name: profile.name,
+            avatarUrl: profile.avatarUrl,
         }
     }
-    // In a real app, you'd fetch this from a DB
+    // Fallback for other channels, this could be improved
     return {
-        name: channelId,
+        name: 'Another User',
         avatarUrl: 'https://placehold.co/40x40.png'
     }
 }
 
 
 export function VideoCard({ video }: VideoCardProps) {
-  const channelInfo = getChannelInfo(video.channelId);
+  const { profile } = useProfile();
+  const channelInfo = getChannelInfo(video.channelId, profile);
 
   return (
     <Link href={`/watch?v=${video.id}`} className="group block">

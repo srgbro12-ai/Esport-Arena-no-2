@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { mockVideos, mockUser } from '@/lib/mock-data';
+import { mockVideos } from '@/lib/mock-data';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Video {
@@ -62,13 +62,12 @@ const ContentContext = createContext<ContentContextType | undefined>(undefined);
 const otherChannels = ['GodLike Esports', 'TSM Entity', 'ScoutOP', 'Mortal'];
 
 export const ContentProvider = ({ children }: { children: ReactNode }) => {
-    const [videos, setVideos] = useState<Video[]>(mockVideos.map((v, i) => ({...v, channelId: i % 2 === 0 ? mockUser.username : otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 14), likeCount: Math.floor(Math.random() * 10000) })));
-    const [shorts, setShorts] = useState<Short[]>(mockVideos.map((v, i) => ({...v, id: `s-${v.id}`, channelId: i % 2 !== 0 ? mockUser.username : otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true, likeCount: Math.floor(Math.random() * 5000) })));
+    const [videos, setVideos] = useState<Video[]>(mockVideos.map((v, i) => ({...v, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 14), likeCount: Math.floor(Math.random() * 10000) })));
+    const [shorts, setShorts] = useState<Short[]>(mockVideos.map((v, i) => ({...v, id: `s-${v.id}`, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true, likeCount: Math.floor(Math.random() * 5000) })));
     const [posts, setPosts] = useState<Post[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
     
     const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({
-        [mockUser.username]: 1200000,
         'GodLike Esports': 5400000,
         'TSM Entity': 3200000,
         'ScoutOP': 4800000,
