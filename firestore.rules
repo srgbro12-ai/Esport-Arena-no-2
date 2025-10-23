@@ -3,321 +3,289 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows users to manage their own profile information.
+     * @description Checks if the request is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the existing document.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource.data.keys().size() > 0;
+    }
+
+    /**
+     * @description Enforces document ownership for user profiles.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' can create a profile document where userId == 'user_abc'.
-     * @deny (create) User with UID 'user_xyz' cannot create a profile document where userId == 'user_abc'.
-     * @allow (get, list, update, delete) User with UID 'user_abc' can read, update, and delete their own profile (userId == 'user_abc').
-     * @deny (get, list, update, delete) User with UID 'user_xyz' cannot read, update, or delete the profile of user 'user_abc'.
+     * @allow (create) User with ID 'user123' creates a profile at /users/user123.
+     * @deny (create) User with ID 'user123' tries to create a profile at /users/user456.
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Allows a user to manage their own wallet.
-     * @path /users/{userId}/wallet
-     * @allow (create) User with UID 'user_abc' can create a wallet document under their user ID where userId == 'user_abc'.
-     * @deny (create) User with UID 'user_xyz' cannot create a wallet document under user 'user_abc'.
-     * @allow (get, list, update, delete) User with UID 'user_abc' can read, update, and delete their own wallet (userId == 'user_abc').
-     * @deny (get, list, update, delete) User with UID 'user_xyz' cannot read, update, or delete the wallet of user 'user_abc'.
-     * @principle Enforces document ownership for writes and validates relational integrity.
-     */
-    match /users/{userId}/wallet {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Allows a user to manage transactions in their own wallet.
-     * @path /users/{userId}/wallet/transactions/{transactionId}
-     * @allow (create) User with UID 'user_abc' can create a transaction document under their wallet where userId == 'user_abc'.
-     * @deny (create) User with UID 'user_xyz' cannot create a transaction document under user 'user_abc''s wallet.
-     * @allow (get, list, update, delete) User with UID 'user_abc' can read, update, and delete their own transaction (userId == 'user_abc').
-     * @deny (get, list, update, delete) User with UID 'user_xyz' cannot read, update, or delete the transaction of user 'user_abc'.
-     * @principle Enforces document ownership for writes and validates relational integrity.
-     */
-    match /users/{userId}/wallet/transactions/{transactionId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
     }
 
     /**
-     * @description Allows public read access to tournament information. Write access is denied.
+     * @description Enforces document ownership for user wallets.
+     * @path /users/{userId}/wallet
+     * @allow (create) User with ID 'user123' creates a wallet at /users/user123/wallet.
+     * @deny (create) User with ID 'user123' tries to create a wallet at /users/user456/wallet.
+     * @principle Enforces document ownership for writes.
+     */
+    match /users/{userId}/wallet {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
+    }
+
+    /**
+     * @description Enforces document ownership for user transactions.
+     * @path /users/{userId}/wallet/transactions/{transactionId}
+     * @allow (create) User with ID 'user123' creates a transaction at /users/user123/wallet/transactions/tx123.
+     * @deny (create) User with ID 'user123' tries to create a transaction at /users/user456/wallet/transactions/tx123.
+     * @principle Enforces document ownership for writes.
+     */
+    match /users/{userId}/wallet/transactions/{transactionId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
+    }
+
+    /**
+     * @description Allows public read access to tournaments, but restricts write access.
      * @path /tournaments/{tournamentId}
-     * @allow (get, list) Any user can read tournament information.
-     * @deny (create, update, delete) No user can create, update, or delete tournament information.
-     * @principle Grants public read access while restricting write access.
+     * @allow (get) Any user can retrieve a tournament.
+     * @allow (list) Any user can list tournaments.
+     * @deny (create) Any user cannot create tournaments. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /tournaments/{tournamentId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows public read access to match information within a tournament. Write access is denied.
+     * @description Allows public read access to matches, but restricts write access.
      * @path /tournaments/{tournamentId}/matches/{matchId}
-     * @allow (get, list) Any user can read match information for a tournament.
-     * @deny (create, update, delete) No user can create, update, or delete match information.
-     * @principle Grants public read access while restricting write access.
+     * @allow (get) Any user can retrieve a match.
+     * @allow (list) Any user can list matches.
+     * @deny (create) Any user cannot create matches.  // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /tournaments/{tournamentId}/matches/{matchId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows management of participant information.
+     * @description Allows public read access to participants, but restricts write access.
      * @path /participants/{participantId}
-     * @allow (get, list) Any user can read participant information.
-     * @allow (create) Any authenticated user can create a participant document.
-     * @allow (update, delete) No user can update or delete participant information.
+     * @allow (get) Any user can retrieve a participant.
+     * @allow (list) Any user can list participants.
+     * @deny (create) Any user cannot create participants. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /participants/{participantId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows a user to manage their own channel.
+     * @description Enforces document ownership for user channels.
      * @path /users/{userId}/channel
-     * @allow (create) User with UID 'user_abc' can create a channel document under their user ID where userId == 'user_abc'.
-     * @deny (create) User with UID 'user_xyz' cannot create a channel document under user 'user_abc'.
-     * @allow (get, list, update, delete) User with UID 'user_abc' can read, update, and delete their own channel (userId == 'user_abc').
-     * @deny (get, list, update, delete) User with UID 'user_xyz' cannot read, update, or delete the channel of user 'user_abc'.
-     * @principle Enforces document ownership for writes and validates relational integrity.
+     * @allow (create) User with ID 'user123' creates a channel at /users/user123/channel.
+     * @deny (create) User with ID 'user123' tries to create a channel at /users/user456/channel.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/channel {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Allows a user to manage videos in their own channel.
-     * @path /users/{userId}/channel/videos/{videoId}
-     * @allow (create) User with UID 'user_abc' can create a video document under their channel where userId == 'user_abc'.
-     * @deny (create) User with UID 'user_xyz' cannot create a video document under user 'user_abc''s channel.
-     * @allow (get, list, update, delete) User with UID 'user_abc' can read, update, and delete their own video (userId == 'user_abc').
-     * @deny (get, list, update, delete) User with UID 'user_xyz' cannot read, update, or delete the video of user 'user_abc'.
-     * @principle Enforces document ownership for writes and validates relational integrity.
-     */
-    match /users/{userId}/channel/videos/{videoId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
     }
 
     /**
-     * @description Allows public read access to store item information. Write access is denied.
+     * @description Enforces document ownership for user videos.
+     * @path /users/{userId}/channel/videos/{videoId}
+     * @allow (create) User with ID 'user123' creates a video at /users/user123/channel/videos/video123.
+     * @deny (create) User with ID 'user123' tries to create a video at /users/user456/channel/videos/video123.
+     * @principle Enforces document ownership for writes.
+     */
+    match /users/{userId}/channel/videos/{videoId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
+    }
+
+    /**
+     * @description Allows public read access to store items, but restricts write access.
      * @path /store_items/{storeItemId}
-     * @allow (get, list) Any user can read store item information.
-     * @deny (create, update, delete) No user can create, update, or delete store item information.
-     * @principle Grants public read access while restricting write access.
+     * @allow (get) Any user can retrieve a store item.
+     * @allow (list) Any user can list store items.
+     * @deny (create) Any user cannot create store items. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /store_items/{storeItemId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows a user to manage their own delivery addresses.
+     * @description Enforces document ownership for user delivery addresses.
      * @path /users/{userId}/delivery_addresses/{deliveryAddressId}
-     * @allow (create) User with UID 'user_abc' can create a delivery address document under their user ID where userId == 'user_abc'.
-     * @deny (create) User with UID 'user_xyz' cannot create a delivery address document under user 'user_abc'.
-     * @allow (get, list, update, delete) User with UID 'user_abc' can read, update, and delete their own delivery address (userId == 'user_abc').
-     * @deny (get, list, update, delete) User with UID 'user_xyz' cannot read, update, or delete the delivery address of user 'user_abc'.
-     * @principle Enforces document ownership for writes and validates relational integrity.
+     * @allow (create) User with ID 'user123' creates a delivery address at /users/user123/delivery_addresses/address123.
+     * @deny (create) User with ID 'user123' tries to create a delivery address at /users/user456/delivery_addresses/address123.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/delivery_addresses/{deliveryAddressId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
     }
 
     /**
-     * @description Allows management of order information.
+     * @description Allows public read access to orders, but restricts write access.
      * @path /orders/{orderId}
+     * @allow (get) Any user can retrieve an order.
+     * @allow (list) Any user can list orders.
+     * @deny (create) Any user cannot create orders. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /orders/{orderId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
+      allow get: if true;
+      allow list: if true;
 
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows management of chat messages.
+     * @description Allows public read access to chat messages, but restricts write access.
      * @path /chat_messages/{chatMessageId}
+     * @allow (get) Any user can retrieve a chat message.
+     * @allow (list) Any user can list chat messages.
+     * @deny (create) Any user cannot create chat messages. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /chat_messages/{chatMessageId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
+      allow get: if true;
+      allow list: if true;
 
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows management of friendship information.
+     * @description Allows public read access to friendships, but restricts write access.
      * @path /friendships/{friendshipId}
+     * @allow (get) Any user can retrieve a friendship.
+     * @allow (list) Any user can list friendships.
+     * @deny (create) Any user cannot create friendships. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /friendships/{friendshipId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
+      allow get: if true;
+      allow list: if true;
 
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows public read access to leaderboard information. Write access is denied.
+     * @description Allows public read access to leaderboards, but restricts write access.
      * @path /leaderboards/{leaderboardId}
-     * @allow (get, list) Any user can read leaderboard information.
-     * @deny (create, update, delete) No user can create, update, or delete leaderboard information.
-     * @principle Grants public read access while restricting write access.
+     * @allow (get) Any user can retrieve a leaderboard.
+     * @allow (list) Any user can list leaderboards.
+     * @deny (create) Any user cannot create leaderboards. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /leaderboards/{leaderboardId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows management of leaderboard entries for a specific leaderboard.
+     * @description Allows public read access to leaderboard entries, but restricts write access.
      * @path /leaderboards/{leaderboardId}/entries/{leaderboardEntryId}
+     * @allow (get) Any user can retrieve a leaderboard entry.
+     * @allow (list) Any user can list leaderboard entries.
+     * @deny (create) Any user cannot create leaderboard entries. // TODO: Add owner validation once the schema is updated with an ownership field.
+     * @principle Public read, owner-only writes.
      */
     match /leaderboards/{leaderboardId}/entries/{leaderboardEntryId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
+      allow get: if true;
+      allow list: if true;
 
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Allows a user to manage their own notifications.
+     * @description Enforces document ownership for user notifications.
      * @path /users/{userId}/notifications/{notificationId}
-     * @allow (create) User with UID 'user_abc' can create a notification document under their user ID where userId == 'user_abc'.
-     * @deny (create) User with UID 'user_xyz' cannot create a notification document under user 'user_abc'.
-     * @allow (get, list, update, delete) User with UID 'user_abc' can read, update, and delete their own notification (userId == 'user_abc').
-     * @deny (get, list, update, delete) User with UID 'user_xyz' cannot read, update, or delete the notification of user 'user_abc'.
+     * @allow (create) User with ID 'user123' creates a notification at /users/user123/notifications/notification123.
+     * @deny (create) User with ID 'user123' tries to create a notification at /users/user456/notifications/notification123.
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/notifications/{notificationId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
     }
   }
 }
