@@ -69,37 +69,46 @@ export default function ChannelPageComponent({
   const firestore = useFirestore();
   const router = useRouter();
 
-  const { targetUser, profile, updateAvatar, updateBanner, updateProfile, setProfile, setTargetUser } = useProfile();
+  const { targetUser, profile, updateAvatar, updateBanner, updateProfile, setProfile } = useProfile();
   
-  const isLoading = isUserLoading;
-
   const isMyChannel = currentUser?.uid === targetUser?.id;
 
-  useEffect(() => {
-    if (isMyChannel && targetUser) {
-      setProfile({
-        id: targetUser.id || '',
-        name: targetUser.displayName || '',
-        handle: targetUser.username || '',
-        avatarUrl: targetUser.avatarUrl || 'https://placehold.co/128x128.png',
-        bannerUrl: targetUser.bannerUrl || 'https://placehold.co/1080x240.png',
-        description: targetUser.description || '',
-        email: currentUser?.email || '',
-        links: targetUser.links || [],
-        dob: targetUser.dob || '',
-        gender: targetUser.gender || '',
-        dataAiHint: 'user avatar',
-        bannerHint: 'channel banner'
-      });
-    }
-  }, [targetUser, isMyChannel, currentUser, setProfile]);
+  const channelInfo = isMyChannel ? {
+      id: profile.id,
+      name: profile.name,
+      handle: profile.handle,
+      username: profile.handle.replace('@',''),
+      avatarUrl: profile.avatarUrl || 'https://placehold.co/128x128.png',
+      dataAiHint: profile.dataAiHint,
+      bannerUrl: profile.bannerUrl || 'https://placehold.co/1080x240.png',
+      bannerHint: profile.bannerHint,
+      description: profile.description,
+      isVerified: targetUser?.isVerified || false,
+      subscribers: `${(targetUser?.subscriberCount || 0).toLocaleString()} Subscribers`,
+      videoCount: targetUser?.videoCount || 0,
+      links: targetUser?.links || [],
+  } : {
+      id: targetUser?.id,
+      name: targetUser?.displayName,
+      handle: `@${targetUser?.username}`,
+      username: targetUser?.username,
+      avatarUrl: targetUser?.avatarUrl || 'https://placehold.co/128x128.png',
+      dataAiHint: 'user avatar',
+      bannerUrl: targetUser?.bannerUrl || 'https://placehold.co/1080x240.png',
+      bannerHint: 'channel banner',
+      description: targetUser?.description,
+      isVerified: targetUser?.isVerified,
+      subscribers: `${(targetUser?.subscriberCount || 0).toLocaleString()} Subscribers`,
+      videoCount: targetUser?.videoCount || 0,
+      links: targetUser?.links || [],
+  };
 
 
-  if (isLoading) {
+  if (isUserLoading) {
     return <div className="text-center p-10">Loading channel...</div>;
   }
 
-  if (!targetUser || !targetUser.displayName) { // Check if channel is created by looking for displayName
+  if (!targetUser || !targetUser.displayName) {
     if (isMyChannel && currentUser) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-center p-10">
@@ -112,27 +121,13 @@ export default function ChannelPageComponent({
     return <div className="text-center p-10">Channel not found.</div>;
   }
   
-  const channelData = {
-    name: targetUser.displayName,
-    handle: `@${targetUser.username}`,
-    avatarUrl: targetUser.avatarUrl || 'https://placehold.co/128x128.png',
-    dataAiHint: 'user avatar',
-    bannerUrl: targetUser.bannerUrl || 'https://placehold.co/1080x240.png',
-    bannerHint: 'channel banner',
-    description: targetUser.description,
-    isVerified: targetUser.isVerified,
-    subscribers: `${(targetUser.subscriberCount || 0).toLocaleString()} Subscribers`,
-    videoCount: targetUser.videoCount || 0,
-    links: targetUser.links || [],
-  };
-
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  const channelVideos = videos.filter(video => video.channelId === targetUser.id);
-  const channelShorts = shorts.filter(short => short.channelId === targetUser.id);
-  const channelPosts = posts.filter(post => post.channelId === targetUser.id);
-  const channelLiveStreams = videos.filter(video => video.channelId === targetUser.id && video.isLive);
+  const channelVideos = videos.filter(video => video.channelId === channelInfo.id);
+  const channelShorts = shorts.filter(short => short.channelId === channelInfo.id);
+  const channelPosts = posts.filter(post => post.channelId === channelInfo.id);
+  const channelLiveStreams = videos.filter(video => video.channelId === channelInfo.id && video.isLive);
 
   const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
@@ -181,7 +176,7 @@ export default function ChannelPageComponent({
   return (
     <div className="container mx-auto px-0 md:px-4 max-w-7xl">
         <div className="relative h-40 md:h-48 w-full bg-secondary md:rounded-xl mb-4">
-            {channelData.bannerUrl && <Image src={channelData.bannerUrl} alt="Channel Banner" fill className="object-cover md:rounded-xl" data-ai-hint={channelData.bannerHint} />}
+            {channelInfo.bannerUrl && <Image src={channelInfo.bannerUrl} alt="Channel Banner" fill className="object-cover md:rounded-xl" data-ai-hint={channelInfo.bannerHint} />}
             {isMyChannel && (
                 <>
                     <div 
@@ -201,14 +196,14 @@ export default function ChannelPageComponent({
             )}
         </div>
         
-        <div className="flex flex-col items-center justify-center text-center -mt-16 z-10 relative px-4">
+        <div className="flex flex-col md:flex-row items-center md:items-end -mt-16 md:-mt-20 z-10 relative px-4 gap-4">
             <div 
                 className={cn("relative group flex-shrink-0", isMyChannel && "cursor-pointer")}
                 onClick={() => isMyChannel && avatarInputRef.current?.click()}
             >
                 <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 md:border-8 border-background bg-background">
-                    {channelData.avatarUrl && <AvatarImage src={channelData.avatarUrl} alt={String(channelData.name)} data-ai-hint={channelData.dataAiHint} />}
-                    <AvatarFallback>{String(channelData.name)?.substring(0, 2)}</AvatarFallback>
+                    {channelInfo.avatarUrl && <AvatarImage src={channelInfo.avatarUrl} alt={String(channelInfo.name)} data-ai-hint={channelInfo.dataAiHint} />}
+                    <AvatarFallback>{String(channelInfo.name)?.substring(0, 2)}</AvatarFallback>
                 </Avatar>
                 {isMyChannel && (
                     <>
@@ -226,51 +221,54 @@ export default function ChannelPageComponent({
                 )}
             </div>
 
-            <div className="mt-2">
-                <div className="flex items-center justify-center space-x-2">
-                <h1 className="text-3xl font-bold">{channelData.name}</h1>
-                {channelData.isVerified && <CheckCircle className="text-blue-400 text-xl" />}
+            <div className="flex-1 flex flex-col md:flex-row justify-between items-center w-full mt-2 text-center md:text-left">
+                <div>
+                  <div className="flex items-center justify-center md:justify-start space-x-2">
+                      <h1 className="text-3xl font-bold">{channelInfo.name}</h1>
+                      {channelInfo.isVerified && <CheckCircle className="text-blue-400 text-xl" />}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-2 text-muted-foreground mt-1 text-sm">
+                      <Link href={`/channel/${channelInfo.username}`} className="hover:underline">{channelInfo.handle}</Link>
+                      <span>•</span>
+                      {isMyChannel ? (
+                          <Link href="/studio/analytics" className="hover:underline flex items-center gap-1.5">
+                              <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                              </span>
+                              {(targetUser.subscriberCount || 0).toLocaleString()} Subscribers
+                          </Link>
+                      ) : (
+                          <span>{channelInfo.subscribers}</span>
+                      )}
+                      <span>•</span>
+                      <span>{channelInfo.videoCount} videos</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-2 max-w-lg mx-auto md:mx-0 line-clamp-2">
+                      {String(channelInfo.description)}
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-x-2 text-muted-foreground mt-1 text-sm">
-                <Link href={`/channel/${channelUsername}`} className="hover:underline">{channelData.handle}</Link>
-                <span>•</span>
-                {isMyChannel ? (
-                    <Link href="/studio/analytics" className="hover:underline flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                        </span>
-                        {(targetUser.subscriberCount || 0).toLocaleString()} Subscribers
-                    </Link>
-                ) : (
-                    <span>{channelData.subscribers}</span>
-                )}
-                <span>•</span>
-                <span>{channelData.videoCount} videos</span>
+
+                <div className="mt-4 md:mt-0 flex-shrink-0 flex space-x-2">
+                    {isMyChannel ? (
+                        <>
+                            <Link href="/studio/dashboard" className={cn(buttonVariants({ variant: 'secondary' }))}>MyTube Studio</Link>
+                            <Link href="/studio/customization" className={cn(buttonVariants({ variant: 'secondary' }))}>Manage Profile</Link>
+                        </>
+                    ) : (
+                        <>
+                            <Button>Subscribe</Button>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant='outline' className='flex items-center gap-2'>
+                                        <Gem className="h-4 w-4" /> Join
+                                    </Button>
+                                </DialogTrigger>
+                            </Dialog>
+                            <Button variant="outline"><UserPlus className="mr-2 h-4 w-4" />Add Friend</Button>
+                        </>
+                    )}
                 </div>
-                <div className="text-sm text-muted-foreground mt-2 max-w-lg mx-auto line-clamp-2">
-                    {String(channelData.description)}
-                </div>
-            </div>
-            <div className="mt-4 flex flex-wrap space-x-2 justify-center">
-                {isMyChannel ? (
-                    <>
-                        <Link href="/studio/dashboard" className={cn(buttonVariants({ variant: 'secondary' }))}>MyTube Studio</Link>
-                        <Link href="/studio/customization" className={cn(buttonVariants({ variant: 'secondary' }))}>Manage Profile</Link>
-                    </>
-                ) : (
-                    <>
-                        <Button>Subscribe</Button>
-                         <Dialog>
-                            <DialogTrigger asChild>
-                                <Button variant='outline' className='flex items-center gap-2'>
-                                    <Gem className="h-4 w-4" /> Join
-                                </Button>
-                            </DialogTrigger>
-                        </Dialog>
-                        <Button variant="outline"><UserPlus className="mr-2 h-4 w-4" />Add Friend</Button>
-                    </>
-                )}
             </div>
         </div>
       
@@ -469,11 +467,11 @@ export default function ChannelPageComponent({
                             <CardHeader>
                                 <div className="flex items-center gap-3">
                                     <Avatar>
-                                        <AvatarImage src={channelData.avatarUrl} />
-                                        <AvatarFallback>{String(channelData.name).substring(0,2)}</AvatarFallback>
+                                        <AvatarImage src={channelInfo.avatarUrl} />
+                                        <AvatarFallback>{String(channelInfo.name).substring(0,2)}</AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <p className="font-semibold">{channelData.name}</p>
+                                        <p className="font-semibold">{channelInfo.name}</p>
                                         <p className="text-xs text-muted-foreground">{post.posted}</p>
                                     </div>
                                 </div>
