@@ -65,7 +65,7 @@ export default function WalletPage() {
                             </TabsContent>
                              <TabsContent value="withdraw" className="mt-4">
                                 <TransactionTable transactions={transactions.filter(t => t.type === 'withdraw')} />
-                             </Tabs_Content>
+                             </TabsContent>
                         </Tabs>
                     </CardContent>
                 </Card>
