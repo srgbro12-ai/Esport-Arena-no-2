@@ -62,6 +62,7 @@ const studioNavItems = [
 
 const mainNavItems = [
   { href: '/home', icon: Home, label: 'Home' },
+  { href: '/tournaments', icon: Trophy, label: 'Tournaments' },
   { href: '/store', icon: Store, label: 'Store' },
   { href: '/wallet', icon: Wallet, label: 'Wallet' },
   { href: '/messages', icon: MessageSquare, label: 'Messages' },

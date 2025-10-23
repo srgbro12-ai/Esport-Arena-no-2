@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { mockVideos } from '@/lib/mock-data';
+import { mockVideos, mockTournaments } from '@/lib/mock-data';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Video {
@@ -66,6 +66,9 @@ interface ContentContextType {
     getSubscriberCount: (channelId: string) => number;
     walletBalance: number;
     transactions: Transaction[];
+    tournaments: typeof mockTournaments;
+    joinedTournamentIds: number[];
+    joinTournament: (id: number) => void;
 }
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
@@ -87,6 +90,8 @@ export const ContentProvider = ({ children }: { children: ReactNode }) => {
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
     const [walletBalance, setWalletBalance] = useState(mockTransactions.reduce((acc, tx) => acc + tx.amount, 0));
+    const [tournaments, setTournaments] = useState(mockTournaments);
+    const [joinedTournamentIds, setJoinedTournamentIds] = useState<number[]>([]);
     
     const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({
         'GodLike Esports': 5400000,
@@ -145,8 +150,12 @@ export const ContentProvider = ({ children }: { children: ReactNode }) => {
         setPlaylists(prev => [...prev, newPlaylist]);
     };
 
+    const joinTournament = (id: number) => {
+        setJoinedTournamentIds(prev => [...prev, id]);
+    };
+
     return (
-        <ContentContext.Provider value={{ videos, shorts, posts, playlists, addVideo, addShort, addPost, addPlaylist, getSubscriberCount, walletBalance, transactions }}>
+        <ContentContext.Provider value={{ videos, shorts, posts, playlists, addVideo, addShort, addPost, addPlaylist, getSubscriberCount, walletBalance, transactions, tournaments, joinedTournamentIds, joinTournament }}>
             {children}
         </ContentContext.Provider>
     );
