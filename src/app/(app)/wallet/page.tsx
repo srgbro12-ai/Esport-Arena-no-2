@@ -5,7 +5,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { DollarSign, PlusCircle, ArrowCircleUp, ArrowCircleDown, History } from 'lucide-react';
+import { DollarSign, PlusCircle, CircleArrowUp, CircleArrowDown, History } from 'lucide-react';
 
 // Mock data for transactions - will be replaced with real data later
 const mockTransactions = [
@@ -19,13 +19,13 @@ const mockTransactions = [
 const getTransactionIcon = (type: string) => {
     switch (type) {
         case 'deposit':
-            return <ArrowCircleDown className="h-6 w-6 text-green-500" />;
+            return <CircleArrowDown className="h-6 w-6 text-green-500" />;
         case 'withdrawal':
-            return <ArrowCircleUp className="h-6 w-6 text-red-500" />;
+            return <CircleArrowUp className="h-6 w-6 text-red-500" />;
         case 'tournament_winnings':
             return <DollarSign className="h-6 w-6 text-yellow-400" />;
         case 'store_purchase':
-            return <ArrowCircleUp className="h-6 w-6 text-red-500" />;
+            return <CircleArrowUp className="h-6 w-6 text-red-500" />;
         default:
             return <DollarSign className="h-6 w-6 text-muted-foreground" />;
     }
@@ -69,7 +69,7 @@ export default function WalletPage() {
                         <PlusCircle className="mr-2 h-5 w-5" /> Add Money
                     </Button>
                     <Button size="lg" variant="outline" className="w-full font-semibold">
-                        <ArrowCircleUp className="mr-2 h-5 w-5" /> Withdraw Funds
+                        <CircleArrowUp className="mr-2 h-5 w-5" /> Withdraw Funds
                     </Button>
                 </CardContent>
             </Card>
