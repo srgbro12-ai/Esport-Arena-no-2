@@ -179,13 +179,13 @@ export default function ChannelPageComponent({
   };
 
   return (
-    <div className="container mx-auto p-4 max-w-7xl">
-        <div className="relative h-48 w-full bg-secondary rounded-xl mb-4">
-            {channelData.bannerUrl && <Image src={channelData.bannerUrl} alt="Channel Banner" fill className="object-cover rounded-xl" data-ai-hint={channelData.bannerHint} />}
+    <div className="container mx-auto px-0 md:px-4 max-w-7xl">
+        <div className="relative h-40 md:h-48 w-full bg-secondary md:rounded-xl mb-4">
+            {channelData.bannerUrl && <Image src={channelData.bannerUrl} alt="Channel Banner" fill className="object-cover md:rounded-xl" data-ai-hint={channelData.bannerHint} />}
             {isMyChannel && (
                 <>
                     <div 
-                    className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer rounded-xl"
+                    className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer md:rounded-xl"
                     onClick={() => bannerInputRef.current?.click()}
                     >
                     <Edit className="h-8 w-8 text-white" />
@@ -200,12 +200,13 @@ export default function ChannelPageComponent({
                 </>
             )}
         </div>
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-6 -mt-16 sm:-mt-14">
+        
+        <div className="flex flex-col items-center justify-center text-center -mt-16 z-10 relative px-4">
             <div 
                 className={cn("relative group flex-shrink-0", isMyChannel && "cursor-pointer")}
                 onClick={() => isMyChannel && avatarInputRef.current?.click()}
             >
-                <Avatar className="w-32 h-32 border-8 border-background bg-background">
+                <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 md:border-8 border-background bg-background">
                     {channelData.avatarUrl && <AvatarImage src={channelData.avatarUrl} alt={String(channelData.name)} data-ai-hint={channelData.dataAiHint} />}
                     <AvatarFallback>{String(channelData.name)?.substring(0, 2)}</AvatarFallback>
                 </Avatar>
@@ -225,57 +226,55 @@ export default function ChannelPageComponent({
                 )}
             </div>
 
-            <div className="flex-1 w-full flex flex-col sm:flex-row justify-between items-center text-center sm:text-left pt-16 sm:pt-14">
-                <div className="mt-2">
-                    <div className="flex items-center justify-center sm:justify-start space-x-2">
-                    <h1 className="text-3xl font-bold">{channelData.name}</h1>
-                    {channelData.isVerified && <CheckCircle className="text-blue-400 text-xl" />}
-                    </div>
-                    <div className="flex items-center justify-center sm:justify-start gap-x-2 text-muted-foreground mt-1 text-sm">
-                    <Link href={`/channel/${channelUsername}`} className="hover:underline">{channelData.handle}</Link>
-                    <span>•</span>
-                    {isMyChannel ? (
-                        <Link href="/studio/analytics" className="hover:underline flex items-center gap-1.5">
-                            <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                            </span>
-                            {(targetUser.subscriberCount || 0).toLocaleString()} Subscribers
-                        </Link>
-                    ) : (
-                        <span>{channelData.subscribers}</span>
-                    )}
-                    <span>•</span>
-                    <span>{channelData.videoCount} videos</span>
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-2 line-clamp-1 flex items-center justify-center sm:justify-start">
-                        {String(channelData.description)?.substring(0, 50)}...
-                    </div>
+            <div className="mt-2">
+                <div className="flex items-center justify-center space-x-2">
+                <h1 className="text-3xl font-bold">{channelData.name}</h1>
+                {channelData.isVerified && <CheckCircle className="text-blue-400 text-xl" />}
                 </div>
-                <div className="mt-4 sm:mt-0 flex space-x-2 justify-center sm:justify-start">
-                    {isMyChannel ? (
-                        <>
-                            <Link href="/studio/dashboard" className={cn(buttonVariants({ variant: 'secondary' }))}>MyTube Studio</Link>
-                            <Link href="/studio/customization" className={cn(buttonVariants({ variant: 'secondary' }))}>Manage Profile</Link>
-                        </>
-                    ) : (
-                        <>
-                            <Button>Subscribe</Button>
-                             <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant='outline' className='flex items-center gap-2'>
-                                        <Gem className="h-4 w-4" /> Join
-                                    </Button>
-                                </DialogTrigger>
-                            </Dialog>
-                            <Button variant="outline"><UserPlus className="mr-2 h-4 w-4" />Add Friend</Button>
-                        </>
-                    )}
+                <div className="flex flex-wrap items-center justify-center gap-x-2 text-muted-foreground mt-1 text-sm">
+                <Link href={`/channel/${channelUsername}`} className="hover:underline">{channelData.handle}</Link>
+                <span>•</span>
+                {isMyChannel ? (
+                    <Link href="/studio/analytics" className="hover:underline flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                        </span>
+                        {(targetUser.subscriberCount || 0).toLocaleString()} Subscribers
+                    </Link>
+                ) : (
+                    <span>{channelData.subscribers}</span>
+                )}
+                <span>•</span>
+                <span>{channelData.videoCount} videos</span>
                 </div>
+                <div className="text-sm text-muted-foreground mt-2 max-w-lg mx-auto line-clamp-2">
+                    {String(channelData.description)}
+                </div>
+            </div>
+            <div className="mt-4 flex flex-wrap space-x-2 justify-center">
+                {isMyChannel ? (
+                    <>
+                        <Link href="/studio/dashboard" className={cn(buttonVariants({ variant: 'secondary' }))}>MyTube Studio</Link>
+                        <Link href="/studio/customization" className={cn(buttonVariants({ variant: 'secondary' }))}>Manage Profile</Link>
+                    </>
+                ) : (
+                    <>
+                        <Button>Subscribe</Button>
+                         <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant='outline' className='flex items-center gap-2'>
+                                    <Gem className="h-4 w-4" /> Join
+                                </Button>
+                            </DialogTrigger>
+                        </Dialog>
+                        <Button variant="outline"><UserPlus className="mr-2 h-4 w-4" />Add Friend</Button>
+                    </>
+                )}
             </div>
         </div>
       
-      <Tabs defaultValue={defaultTab} className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full mt-6">
          <TabsList className="w-full justify-start overflow-x-auto no-scrollbar border-b rounded-none mb-6">
           <TabsTrigger value="home">Home</TabsTrigger>
           <TabsTrigger value="videos">Videos</TabsTrigger>
