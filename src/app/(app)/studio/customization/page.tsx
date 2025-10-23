@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,13 +13,17 @@ import { Copy, Plus, Trash2, Pencil } from 'lucide-react';
 import { useProfile } from '@/context/ProfileContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 export default function CustomizationPage() {
     const { toast } = useToast();
     const { profile, updateAvatar, updateBanner, updateProfile } = useProfile();
+    const { user } = useUser();
+    const firestore = useFirestore();
     
     const [name, setName] = useState(profile.name);
-    const [handle, setHandle] = useState(profile.handle);
+    const [handle, setHandle] = useState(profile.handle.replace('@', ''));
     const [description, setDescription] = useState(profile.description);
     const [contactEmail, setContactEmail] = useState(profile.email || '');
     const [links, setLinks] = useState(profile.links);
@@ -28,6 +32,19 @@ export default function CustomizationPage() {
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
+
+    // Sync local state with profile context when it loads
+    useEffect(() => {
+        if (profile.id) {
+            setName(profile.name);
+            setHandle(profile.handle.replace('@', ''));
+            setDescription(profile.description);
+            setContactEmail(profile.email || '');
+            setLinks(profile.links || []);
+            setDob(profile.dob);
+            setGender(profile.gender);
+        }
+    }, [profile]);
 
 
     const addLink = () => {
@@ -70,19 +87,58 @@ export default function CustomizationPage() {
         }
     };
 
-    const handlePublish = () => {
-        updateProfile({ name, handle, description, email: contactEmail, links, dob, gender });
-        toast({
-            title: "Channel updated successfully!",
-        });
-    }
+    const handlePublish = async () => {
+        if (!user || !firestore) {
+            toast({ title: "You must be logged in to make changes.", variant: "destructive" });
+            return;
+        }
+
+        const profileDataToSave = {
+            displayName: name,
+            username: handle.startsWith('@') ? handle.substring(1) : handle,
+            description,
+            email: contactEmail,
+            links,
+            dob,
+            gender,
+        };
+
+        try {
+            const userRef = doc(firestore, 'users', user.uid);
+            await updateDoc(userRef, profileDataToSave);
+            
+            // Update local context after successful save
+            updateProfile({
+                name,
+                handle: `@${profileDataToSave.username}`,
+                description,
+                email: contactEmail,
+                links,
+                dob,
+                gender,
+            });
+
+            toast({
+                title: "Channel updated successfully!",
+            });
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            toast({
+                title: "Failed to update channel",
+                description: (error as Error).message,
+                variant: "destructive"
+            });
+        }
+    };
+
+    const channelHandle = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
 
     return (
         <div className="p-4 md:p-6 lg:p-8 space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 className="text-2xl font-bold">Channel customization</h1>
                 <div className="flex items-center gap-2">
-                    <Link href={`/channel/${profile.id}`}>
+                    <Link href={`/channel/${channelHandle}`}>
                         <Button variant="ghost">View channel</Button>
                     </Link>
                     <Button variant="outline">Cancel</Button>
@@ -112,7 +168,7 @@ export default function CustomizationPage() {
                             <CardTitle>Picture</CardTitle>
                         </CardHeader>
                         <CardContent className="flex flex-col md:flex-row items-center gap-6">
-                            <Link href={`/channel/${profile.id}`} className="block">
+                            <Link href={`/channel/${channelHandle}`} className="block">
                                 <Image src={profile.avatarUrl} width={128} height={128} alt="Profile Picture" className="rounded-full object-cover" data-ai-hint={profile.dataAiHint} />
                             </Link>
                             <div className="flex-1">
