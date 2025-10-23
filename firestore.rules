@@ -1,48 +1,51 @@
 /**
- * @file Firestore Security Rules for Esport Arena
- * @description This ruleset enforces a user-ownership model for user profiles, wallets, videos, delivery addresses, and notifications, while allowing public read access to tournaments and store items.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles and related data,
+ *              while allowing public read access to certain collections like 'tournaments' and 'store_items'.
+ *              All data is nested under /users/{userId}, and subcollections inherit this ownership.
  *
- * @dataStructure
- * - /users/{userId}: Stores user profiles, channels, and related information.
- * - /users/{userId}/wallet: Stores wallet information for each user.
- * - /users/{userId}/wallet/transactions/{transactionId}: Stores transaction history for a user's wallet.
- * - /tournaments/{tournamentId}: Stores tournament information (publicly readable).
- * - /tournaments/{tournamentId}/matches/{matchId}: Stores match information for tournaments.
- * - /participants/{participantId}: Stores information about tournament participants.
- * - /users/{userId}/videos/{videoId}: Stores video information for a user's channel.
- * - /store_items/{storeItemId}: Stores store item information (publicly readable).
- * - /users/{userId}/delivery_addresses/{deliveryAddressId}: Stores delivery addresses for users.
- * - /orders/{orderId}: Stores order information. Accessible only with valid `userId`
- * - /chat_messages/{chatMessageId}: Stores chat messages between users.
- * - /friendships/{friendshipId}: Stores friendship relationships between users.
- * - /leaderboards/{leaderboardId}: Stores leaderboard information.
- * - /leaderboards/{leaderboardId}/entries/{leaderboardEntryId}: Stores leaderboard entries.
- * - /users/{userId}/notifications/{notificationId}: Stores notifications for each user.
+ * Data Structure:
+ * - /users/{userId}: Stores user profile data (merged Channel data).  Ownership is enforced via path.
+ * - /users/{userId}/wallet: Stores wallet data. Ownership is inherited from the path.
+ * - /users/{userId}/wallet/transactions/{transactionId}: Stores transaction history.  Ownership inherited.
+ * - /tournaments/{tournamentId}: Stores tournament data. Publicly readable, writes restricted (TODO).
+ * - /tournaments/{tournamentId}/matches/{matchId}: Stores match data. Publicly readable, writes restricted (TODO).
+ * - /participants/{participantId}: Stores participant data. Writes restricted to owner of UserProfile.
+ * - /users/{userId}/videos/{videoId}: Stores video data. Ownership enforced via path.
+ * - /store_items/{storeItemId}: Stores store item data. Publicly readable, writes restricted (TODO).
+ * - /users/{userId}/delivery_addresses/{deliveryAddressId}: Stores delivery address data. Ownership inherited.
+ * - /orders/{orderId}: Stores order data. Writes restricted to owner of UserProfile.
+ * - /chat_messages/{chatMessageId}: Stores chat messages. Writes restricted to owner of UserProfile.
+ * - /friendships/{friendshipId}: Stores friendship data. Writes restricted to owner of UserProfile.
+ * - /leaderboards/{leaderboardId}: Stores leaderboard data. Publicly readable, writes restricted (TODO).
+ * - /leaderboards/{leaderboardId}/entries/{leaderboardEntryId}: Stores leaderboard entries. Writes restricted.
+ * - /users/{userId}/notifications/{notificationId}: Stores notifications. Ownership enforced via path.
  *
- * @keySecurityDecisions
- * - User-owned data (profiles, wallets, videos, delivery addresses, notifications) is strictly controlled by the user's authentication UID.
- * - Listing of user documents is allowed only for the authenticated user.
- * - Tournaments and Store Items are publicly readable, but write access is not defined in this prototype.
- * - Orders are only accessible to their respective users.
+ * Key Security Decisions:
+ * - User listing is explicitly denied to protect user privacy.
+ * - Public read access is granted to 'tournaments' and 'store_items'.
+ * - Owner-only access is the default security posture for ambiguous relationships.
+ * - Writes to several top-level collections ("tournaments", "store_items", "leaderboards") are currently not secured. TODO: Implement admin-only writes.
  *
- * @denormalizationForAuthorization
- * - Wallet and Transaction documents include a `userId` field to simplify ownership checks without requiring additional `get()` calls.
- * - Match documents include a `tournamentId` field to simplify checks without requiring additional `get()` calls.
- * - Participant documents include a `userId` and `tournamentId` to simplify authorization.
- * - Order documents include a `userId` for authorization purposes.
- * - LeaderboardEntry documents include a `leaderboardId` for authorization purposes.
+ * Denormalization for Authorization:
+ * - The 'userId' is denormalized into the 'Wallet', 'Transaction', 'Participant', 'DeliveryAddress', and 'Order' documents to make authorization checks independent and efficient.
+ *
+ * Structural Segregation:
+ * - User-specific data (e.g., videos, delivery addresses) is stored under the /users/{userId} collection to ensure privacy and ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile data.  Users can only read and write their own profile.
+     * @description Allows users to read and write their own profile data.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' can create a profile at /users/user_abc with matching id field.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, or delete their profile at /users/user_abc.
-     * @deny (create) User with UID 'user_xyz' cannot create a profile at /users/user_abc.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with UID 'user123' can create their own profile with id: 'user123'.
+     * @allow (get) - User with UID 'user123' can read their own profile.
+     * @allow (update) - User with UID 'user123' can update their own profile.
+     * @allow (delete) - User with UID 'user123' can delete their own profile.
+     * @deny (create) - User with UID 'user456' cannot create a profile with id: 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /users/{userId} {
       function isSignedIn() {
@@ -53,24 +56,23 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false; // User listing is disabled.
 
-      allow get: if true;
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Controls access to user wallet data. Users can only read and write their own wallet.
+     * @description Allows users to read and write their own wallet data.
      * @path /users/{userId}/wallet
-     * @allow (create) User with UID 'user_abc' can create a wallet at /users/user_abc/wallet with matching userId field.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, or delete their wallet at /users/user_abc/wallet.
-     * @deny (create) User with UID 'user_xyz' cannot create a wallet at /users/user_abc/wallet.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with UID 'user123' can create their own wallet with userId: 'user123'.
+     * @allow (get) - User with UID 'user123' can read their own wallet.
+     * @allow (update) - User with UID 'user123' can update their own wallet.
+     * @allow (delete) - User with UID 'user123' can delete their own wallet.
+     * @deny (create) - User with UID 'user456' cannot create a wallet with userId: 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /users/{userId}/wallet {
       function isSignedIn() {
@@ -81,24 +83,23 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Controls access to transaction history. Users can only read and write their own transaction history.
+     * @description Allows users to read and write their own transaction data.
      * @path /users/{userId}/wallet/transactions/{transactionId}
-     * @allow (create) User with UID 'user_abc' can create a transaction at /users/user_abc/wallet/transactions/{transactionId} with matching userId field.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, or delete their transaction at /users/user_abc/wallet/transactions/{transactionId}.
-     * @deny (create) User with UID 'user_xyz' cannot create a transaction at /users/user_abc/wallet/transactions/{transactionId}.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with UID 'user123' can create their own transaction with userId: 'user123'.
+     * @allow (get) - User with UID 'user123' can read their own transaction.
+     * @allow (update) - User with UID 'user123' can update their own transaction.
+     * @allow (delete) - User with UID 'user123' can delete their own transaction.
+     * @deny (create) - User with UID 'user456' cannot create a transaction with userId: 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /users/{userId}/wallet/transactions/{transactionId} {
       function isSignedIn() {
@@ -109,68 +110,80 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
       allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Controls access to tournament information. Tournaments are publicly readable.
+     * @description Allows anyone to read tournament data, but restricts writes (TODO: Implement admin-only writes).
      * @path /tournaments/{tournamentId}
-     * @allow (get, list) Any user can read tournament information.
-     * @deny (create, update, delete) No user can create, update, or delete tournament information (unprotected).
-     * @principle Allows public read access while restricting write access.
+     * @allow (get) - Any user can read tournament data.
+     * @allow (list) - Any user can list tournament data.
+     * @deny (create) - No one can create a tournament.
+     * @deny (update) - No one can update a tournament.
+     * @deny (delete) - No one can delete a tournament.
      */
     match /tournaments/{tournamentId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false; // TODO: Add admin role validation if needed
-      allow update: if false; // TODO: Add admin role validation if needed
-      allow delete: if false; // TODO: Add admin role validation if needed
+      allow create: if false; // TODO: Add admin-only validation.
+      allow update: if false; // TODO: Add admin-only validation.
+      allow delete: if false; // TODO: Add admin-only validation.
     }
 
     /**
-     * @description Controls access to match information within a tournament.
+     * @description Allows anyone to read match data, but restricts writes (TODO: Implement admin-only writes).
      * @path /tournaments/{tournamentId}/matches/{matchId}
-     * @allow (get, list) Any user can read match information.
-     * @deny (create, update, delete) No user can create, update, or delete match information (unprotected).
-     * @principle Allows public read access while restricting write access.
+     * @allow (get) - Any user can read match data.
+     * @allow (list) - Any user can list match data.
+     * @deny (create) - No one can create a match.
+     * @deny (update) - No one can update a match.
+     * @deny (delete) - No one can delete a match.
      */
     match /tournaments/{tournamentId}/matches/{matchId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false; // TODO: Add admin role validation if needed
-      allow update: if false; // TODO: Add admin role validation if needed
-      allow delete: if false; // TODO: Add admin role validation if needed
+      allow create: if false; // TODO: Add admin-only validation.
+      allow update: if false; // TODO: Add admin-only validation.
+      allow delete: if false; // TODO: Add admin-only validation.
     }
 
     /**
-     * @description Controls access to participant information.
+     * @description Allows authenticated users to create, read, update, and delete participant data with ownership validation.
      * @path /participants/{participantId}
-     * @allow (get, list) Any user can read participant information.
-     * @deny (create, update, delete) No user can create, update, or delete participant information (unprotected).
+     * @allow (create) - User with UID 'user123' can create a participant.
+     * @allow (get) - User with UID 'user123' can read a participant.
+     * @allow (update) - User with UID 'user123' can update a participant.
+     * @allow (delete) - User with UID 'user123' can delete a participant.
+     * @deny (create) - User with UID 'user456' cannot create a participant for user 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /participants/{participantId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false; // TODO: Add admin/owner validation if needed
-      allow update: if false; // TODO: Add admin/owner validation if needed
-      allow delete: if false; // TODO: Add admin/owner validation if needed
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get: if isSignedIn();
+      allow list: if false;
+
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow delete: if isSignedIn() && request.auth.uid == request.resource.data.userId;
     }
 
     /**
-     * @description Controls access to video information. Users can only read and write their own videos.
+     * @description Allows users to read and write their own video data.
      * @path /users/{userId}/videos/{videoId}
-     * @allow (create) User with UID 'user_abc' can create a video at /users/user_abc/videos/{videoId} with matching channelId field.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, or delete their video at /users/user_abc/videos/{videoId}.
-     * @deny (create) User with UID 'user_xyz' cannot create a video at /users/user_abc/videos/{videoId}.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with UID 'user123' can create their own video with channelId: 'user123'.
+     * @allow (get) - User with UID 'user123' can read their own video.
+     * @allow (update) - User with UID 'user123' can update their own video.
+     * @allow (delete) - User with UID 'user123' can delete their own video.
+     * @deny (create) - User with UID 'user456' cannot create a video with channelId: 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /users/{userId}/videos/{videoId} {
       function isSignedIn() {
@@ -181,39 +194,40 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.channelId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.channelId == resource.data.channelId;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Controls access to store item information. Store Items are publicly readable.
+     * @description Allows anyone to read store item data, but restricts writes (TODO: Implement admin-only writes).
      * @path /store_items/{storeItemId}
-     * @allow (get, list) Any user can read store item information.
-     * @deny (create, update, delete) No user can create, update, or delete store item information (unprotected).
-     * @principle Allows public read access while restricting write access.
+     * @allow (get) - Any user can read store item data.
+     * @allow (list) - Any user can list store item data.
+     * @deny (create) - No one can create a store item.
+     * @deny (update) - No one can update a store item.
+     * @deny (delete) - No one can delete a store item.
      */
     match /store_items/{storeItemId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false;  // TODO: Add admin role validation if needed
-      allow update: if false;  // TODO: Add admin role validation if needed
-      allow delete: if false;  // TODO: Add admin role validation if needed
+      allow create: if false; // TODO: Add admin-only validation.
+      allow update: if false; // TODO: Add admin-only validation.
+      allow delete: if false; // TODO: Add admin-only validation.
     }
 
     /**
-     * @description Controls access to delivery address information. Users can only read and write their own delivery addresses.
+     * @description Allows users to read and write their own delivery address data.
      * @path /users/{userId}/delivery_addresses/{deliveryAddressId}
-     * @allow (create) User with UID 'user_abc' can create a delivery address at /users/user_abc/delivery_addresses/{deliveryAddressId} with matching userId field.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, or delete their delivery address at /users/user_abc/delivery_addresses/{deliveryAddressId}.
-     * @deny (create) User with UID 'user_xyz' cannot create a delivery address at /users/user_abc/delivery_addresses/{deliveryAddressId}.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with UID 'user123' can create their own delivery address with userId: 'user123'.
+     * @allow (get) - User with UID 'user123' can read their own delivery address.
+     * @allow (update) - User with UID 'user123' can update their own delivery address.
+     * @allow (delete) - User with UID 'user123' can delete their own delivery address.
+     * @deny (create) - User with UID 'user456' cannot create a delivery address with userId: 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /users/{userId}/delivery_addresses/{deliveryAddressId} {
       function isSignedIn() {
@@ -224,103 +238,132 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Controls access to order information. Users can only read and write their own orders.
+     * @description Allows users to create, read, update, and delete order data with ownership validation.
      * @path /orders/{orderId}
-     * @allow (create) User with UID 'user_abc' can create an order with matching userId field.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, or delete their order.
-     * @deny (create) User with UID 'user_xyz' cannot create an order for user_abc.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with UID 'user123' can create an order with userId: 'user123'.
+     * @allow (get) - User with UID 'user123' can read an order with userId: 'user123'.
+     * @allow (update) - User with UID 'user123' can update an order with userId: 'user123'.
+     * @allow (delete) - User with UID 'user123' can delete an order with userId: 'user123'.
+     * @deny (create) - User with UID 'user456' cannot create an order with userId: 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /orders/{orderId} {
-       function isSignedIn() {
+      function isSignedIn() {
         return request.auth != null;
       }
 
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
+      allow get: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow list: if false;
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.userId) && resource.data.userId == request.auth.uid;
-      allow delete: if isExistingOwner(resource.data.userId) && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
 
     /**
-     * @description Controls access to chat messages.
+     * @description Allows authenticated users to create, read, update, and delete chat message data.
      * @path /chat_messages/{chatMessageId}
+     * @allow (create) - User with UID 'user123' can create a chat message.
+     * @allow (get) - User with UID 'user123' can read a chat message.
+     * @allow (update) - User with UID 'user123' can update a chat message.
+     * @allow (delete) - User with UID 'user123' can delete a chat message.
+     * @deny (create) - User with UID 'user456' cannot create a chat message for user 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /chat_messages/{chatMessageId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;  // TODO: Add role validation if needed
-      allow update: if false;  // TODO: Add role validation if needed
-      allow delete: if false;  // TODO: Add role validation if needed
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get: if isSignedIn() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
+      allow list: if false;
+
+      allow create: if isSignedIn() && (request.auth.uid == request.resource.data.senderId || request.auth.uid == request.resource.data.receiverId);
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
+      allow delete: if isSignedIn() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
     }
 
     /**
-     * @description Controls access to friendship relationships.
+     * @description Allows authenticated users to create, read, update, and delete friendship data.
      * @path /friendships/{friendshipId}
+     * @allow (create) - User with UID 'user123' can create a friendship.
+     * @allow (get) - User with UID 'user123' can read a friendship.
+     * @allow (update) - User with UID 'user123' can update a friendship.
+     * @allow (delete) - User with UID 'user123' can delete a friendship.
+     * @deny (create) - User with UID 'user456' cannot create a friendship for user 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /friendships/{friendshipId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;  // TODO: Add role validation if needed
-      allow update: if false;  // TODO: Add role validation if needed
-      allow delete: if false;  // TODO: Add role validation if needed
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get: if isSignedIn() && (request.auth.uid == resource.data.user1Id || request.auth.uid == resource.data.user2Id);
+      allow list: if false;
+
+      allow create: if isSignedIn() && (request.auth.uid == request.resource.data.user1Id || request.auth.uid == request.resource.data.user2Id);
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.user1Id || request.auth.uid == resource.data.user2Id);
+      allow delete: if isSignedIn() && (request.auth.uid == resource.data.user1Id || request.auth.uid == resource.data.user2Id);
     }
 
     /**
-     * @description Controls access to leaderboard information. Leaderboards are publicly readable.
+     * @description Allows anyone to read leaderboard data, but restricts writes (TODO: Implement admin-only writes).
      * @path /leaderboards/{leaderboardId}
-     * @allow (get, list) Any user can read leaderboard information.
-     * @deny (create, update, delete) No user can create, update, or delete leaderboard information (unprotected).
-     * @principle Allows public read access while restricting write access.
+     * @allow (get) - Any user can read leaderboard data.
+     * @allow (list) - Any user can list leaderboard data.
+     * @deny (create) - No one can create a leaderboard.
+     * @deny (update) - No one can update a leaderboard.
+     * @deny (delete) - No one can delete a leaderboard.
      */
     match /leaderboards/{leaderboardId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false;  // TODO: Add role validation if needed
-      allow update: if false;  // TODO: Add role validation if needed
-      allow delete: if false;  // TODO: Add role validation if needed
+      allow create: if false; // TODO: Add admin-only validation.
+      allow update: if false; // TODO: Add admin-only validation.
+      allow delete: if false; // TODO: Add admin-only validation.
     }
 
     /**
-     * @description Controls access to leaderboard entries.
+     * @description Allows authenticated users to create, read, update, and delete leaderboard entry data with ownership validation.
      * @path /leaderboards/{leaderboardId}/entries/{leaderboardEntryId}
+     * @allow (create) - User with UID 'user123' can create a leaderboard entry.
+     * @allow (get) - User with UID 'user123' can read a leaderboard entry.
+     * @allow (update) - User with UID 'user123' can update a leaderboard entry.
+     * @allow (delete) - User with UID 'user123' can delete a leaderboard entry.
+     * @deny (create) - User with UID 'user456' cannot create a leaderboard entry for user 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /leaderboards/{leaderboardId}/entries/{leaderboardEntryId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;  // TODO: Add role validation if needed
-      allow update: if false;  // TODO: Add role validation if needed
-      allow delete: if false;  // TODO: Add role validation if needed
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow list: if false;
+
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
 
     /**
-     * @description Controls access to user notification data. Users can only read and write their own notifications.
+     * @description Allows users to read and write their own notification data.
      * @path /users/{userId}/notifications/{notificationId}
-     * @allow (create) User with UID 'user_abc' can create a notification at /users/user_abc/notifications/{notificationId} with matching userId field.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, or delete their notification at /users/user_abc/notifications/{notificationId}.
-     * @deny (create) User with UID 'user_xyz' cannot create a notification at /users/user_abc/notifications/{notificationId}.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with UID 'user123' can create their own notification with userId: 'user123'.
+     * @allow (get) - User with UID 'user123' can read their own notification.
+     * @allow (update) - User with UID 'user123' can update their own notification.
+     * @allow (delete) - User with UID 'user123' can delete their own notification.
+     * @deny (create) - User with UID 'user456' cannot create a notification with userId: 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's own data.
      */
     match /users/{userId}/notifications/{notificationId} {
       function isSignedIn() {
@@ -331,15 +374,12 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
 
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
   }
 }
