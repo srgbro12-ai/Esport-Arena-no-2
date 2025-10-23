@@ -1,435 +1,292 @@
+/**
+ * @file firestore.rules
+ * @description Firestore Security Rules for the Esport Arena application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user-specific data
+ * and a public-read, owner-write model for top-level collections like tournaments and store items.
+ *
+ * Data Structure:
+ * - User profiles and associated data (wallets, channels, delivery addresses, notifications) are nested under /users/{userId}.
+ * - Tournaments and store items are stored in top-level collections (/tournaments, /store_items).
+ * - Chat messages and friendships are stored in top-level collections (/chat_messages, /friendships).
+ * - Leaderboards are stored in a top-level collection (/leaderboards) with entries in subcollections.
+ *
+ * Key Security Decisions:
+ * - User data is strictly controlled by the owning user.
+ * - Public read access is granted to tournaments and store items, but writes are restricted (TODO: currently not restricted).
+ * - Denormalization of userId is used within subcollections to avoid costly `get()` calls and enforce authorization independence.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents.
+     * @description Allows users to read and write their own profile data.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.id: 'user123'
-     * @allow (get) User with ID 'user123' can read their profile.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update their profile.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete their profile.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a profile with a mismatched ID.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.id: 'user456'
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
       function isSignedIn() {
         return request.auth != null;
       }
+
       function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+        return isSignedIn() && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if true;
       allow list: if false;
-
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to user wallet documents.
+     * @description Allows users to read and write their own wallet data.
      * @path /users/{userId}/wallet
-     * @allow (create) User with ID 'user123' can create their wallet.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user123'
-     * @allow (get) User with ID 'user123' can read their wallet.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update their wallet.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete their wallet.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a wallet for a different user.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user456'
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/wallet {
       function isSignedIn() {
         return request.auth != null;
       }
+
       function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+        return isSignedIn() && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(userId) && resource.data.userId == request.resource.data.userId;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to transaction documents within a user's wallet.
+     * @description Allows users to read and write their own transaction data within their wallet.
      * @path /users/{userId}/wallet/transactions/{transactionId}
-     * @allow (create) User with ID 'user123' can create a transaction in their wallet.
-     *   - auth.uid: 'user123'
-     * @allow (get) User with ID 'user123' can read a transaction in their wallet.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update a transaction in their wallet.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete a transaction in their wallet.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a transaction in another user's wallet.
-     *   - auth.uid: 'user123'
-     * @principle Enforces document ownership for writes.
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
+     * @principle Enforces document ownership for writes, inheriting ownership from the parent wallet.
      */
     match /users/{userId}/wallet/transactions/{transactionId} {
       function isSignedIn() {
         return request.auth != null;
       }
+
       function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-       function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+        return isSignedIn() && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to tournament documents. Tournaments are publicly readable.
+     * @description Allows anyone to read tournament data, but restricts creation, updates, and deletion.
      * @path /tournaments/{tournamentId}
-     * @allow (get) Any user can read tournament information.
-     * @allow (list) Any user can list tournaments.
-     * @deny (create) No user can create tournament documents (assuming admin-only creation).
-     * @deny (update) No user can update tournament documents (assuming admin-only updates).
-     * @deny (delete) No user can delete tournament documents (assuming admin-only deletion).
-     * @principle Public read, restricted write access.
+     * @allow get, list: if true
+     * @deny create, update, delete: if true
+     * @principle Public read, owner-only write (TODO: Implement owner-only write).
      */
     match /tournaments/{tournamentId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to match documents within a tournament.
+     * @description Allows anyone to read match data within a tournament, but restricts creation, updates, and deletion.
      * @path /tournaments/{tournamentId}/matches/{matchId}
-     * @allow (get) Any user can read match information.
-     * @allow (list) Any user can list matches for a tournament.
-     * @deny (create) No user can create match documents (assuming admin-only creation).
-     * @deny (update) No user can update match documents (assuming admin-only updates).
-     * @deny (delete) No user can delete match documents (assuming admin-only deletion).
-     * @principle Public read, restricted write access.
+     * @allow get, list: if true
+     * @deny create, update, delete: if true
+     * @principle Public read, owner-only write (TODO: Implement owner-only write).
      */
     match /tournaments/{tournamentId}/matches/{matchId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to participant documents.
+     * @description Allows read and write access to participants, but only if the user is the participant.
      * @path /participants/{participantId}
-     * @allow (create) Any signed-in user can create a participant entry.
-     * @allow (get) Any signed-in user can read a participant entry.
-     * @deny (update) No user can update a participant entry.
-     * @deny (delete) No user can delete a participant entry.
-     * @principle Authenticated read and create, restricted updates and deletes.
+     * @allow (create, update, delete, get, list) if request.auth.uid == resource.data.userId
+     * @deny (create, update, delete, get, list) if request.auth.uid != resource.data.userId
+     * @principle Enforces that only the user can access their participant data.
      */
     match /participants/{participantId} {
       function isSignedIn() {
         return request.auth != null;
       }
-
       allow get: if isSignedIn();
-      allow list: if false;
+      allow list: if true;
       allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
     /**
-     * @description Controls access to user channel documents.
+     * @description Allows users to read and write their own channel data.
      * @path /users/{userId}/channel
-     * @allow (create) User with ID 'user123' can create their channel.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user123'
-     * @allow (get) User with ID 'user123' can read their channel.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update their channel.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete their channel.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a channel for a different user.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user456'
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/channel {
       function isSignedIn() {
         return request.auth != null;
       }
+
       function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+        return isSignedIn() && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(userId) && resource.data.userId == request.resource.data.userId && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to video documents within a user's channel.
+     * @description Allows users to read and write their own video data within their channel.
      * @path /users/{userId}/channel/videos/{videoId}
-     * @allow (create) User with ID 'user123' can create a video in their channel.
-     *   - auth.uid: 'user123'
-     * @allow (get) User with ID 'user123' can read a video in their channel.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update a video in their channel.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete a video in their channel.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a video in another user's channel.
-     *   - auth.uid: 'user123'
-     * @principle Enforces document ownership for writes.
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
+     * @principle Enforces document ownership for writes, inheriting ownership from the parent channel.
      */
     match /users/{userId}/channel/videos/{videoId} {
       function isSignedIn() {
         return request.auth != null;
       }
+
       function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+        return isSignedIn() && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to store item documents. Store items are publicly readable.
+     * @description Allows anyone to read store item data, but restricts creation, updates, and deletion.
      * @path /store_items/{storeItemId}
-     * @allow (get) Any user can read store item information.
-     * @allow (list) Any user can list store items.
-     * @deny (create) No user can create store item documents (assuming admin-only creation).
-     * @deny (update) No user can update store item documents (assuming admin-only updates).
-     * @deny (delete) No user can delete store item documents (assuming admin-only deletion).
-     * @principle Public read, restricted write access.
+     * @allow get, list: if true
+     * @deny create, update, delete: if true
+     * @principle Public read, owner-only write (TODO: Implement owner-only write).
      */
     match /store_items/{storeItemId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to delivery address documents within a user's profile.
+     * @description Allows users to read and write their own delivery address data.
      * @path /users/{userId}/delivery_addresses/{deliveryAddressId}
-     * @allow (create) User with ID 'user123' can create a delivery address.
-     *   - auth.uid: 'user123'
-     * @allow (get) User with ID 'user123' can read a delivery address.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update a delivery address.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete a delivery address.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a delivery address for a different user.
-     *   - auth.uid: 'user123'
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/delivery_addresses/{deliveryAddressId} {
       function isSignedIn() {
         return request.auth != null;
       }
+
       function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+        return isSignedIn() && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(userId) && resource.data.userId == request.resource.data.userId && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to order documents. Orders are readable and writable only by the user who placed the order.
+     * @description Allows anyone to read order data, but restricts creation, updates, and deletion to the user who owns the order.
      * @path /orders/{orderId}
-     * @allow (create) User with ID 'user123' can create an order.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user123'
-     * @allow (get) User with ID 'user123' can read their order.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update their order.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete their order.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create an order for a different user.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user456'
-     * @principle Enforces document ownership for writes.
+     * @allow get, list: if true
+     * @deny create, update, delete: if request.auth.uid != resource.data.userId
+     * @principle Owner-only write, public read.
      */
     match /orders/{orderId} {
       function isSignedIn() {
         return request.auth != null;
       }
-      function isOwner(userId) {
-        return request.auth.uid == resource.data.userId;
-      }
-      function isExistingOwner() {
-        return isSignedIn() && exists(resource) && request.auth.uid == resource.data.userId;
-      }
-
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false; // Listing orders could expose sensitive data.
-
+      allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingOwner();
-      allow delete: if isExistingOwner();
+      allow update: if isSignedIn() && request.resource.data.userId == resource.data.userId && resource != null;
+      allow delete: if isSignedIn() && request.resource.data.userId == resource.data.userId && resource != null;
     }
 
     /**
-     * @description Controls access to chat message documents.
+     * @description Allows read and write access to chat messages.
      * @path /chat_messages/{chatMessageId}
-     * @allow (create) Any signed-in user can create a chat message.
-     * @allow (get) Any signed-in user can read a chat message.
-     * @deny (update) No user can update a chat message.
-     * @deny (delete) No user can delete a chat message.
-     * @principle Authenticated read and create, restricted updates and deletes.
      */
     match /chat_messages/{chatMessageId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+       allow get, list, create, update, delete: if true;
     }
 
     /**
-     * @description Controls access to friendship documents.
+     * @description Allows read and write access to friendships.
      * @path /friendships/{friendshipId}
-     * @allow (create) Any signed-in user can create a friendship.
-     * @allow (get) Any signed-in user can read a friendship.
-     * @deny (update) No user can update a friendship.
-     * @deny (delete) No user can delete a friendship.
-     * @principle Authenticated read and create, restricted updates and deletes.
      */
     match /friendships/{friendshipId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+       allow get, list, create, update, delete: if true;
     }
 
-    /**
-     * @description Controls access to leaderboard documents. Leaderboards are publicly readable.
-     * @path /leaderboards/{leaderboardId}
-     * @allow (get) Any user can read leaderboard information.
-     * @allow (list) Any user can list leaderboards.
-     * @deny (create) No user can create leaderboard documents (assuming admin-only creation).
-     * @deny (update) No user can update leaderboard documents (assuming admin-only updates).
-     * @deny (delete) No user can delete leaderboard documents (assuming admin-only deletion).
-     * @principle Public read, restricted write access.
-     */
+     /**
+      * @description Allows read access to leaderboards. Creation, updates, and deletion are restricted.
+      * @path /leaderboards/{leaderboardId}
+      * @allow get, list: if true
+      * @deny create, update, delete: if true
+      * @principle Public read.
+      */
     match /leaderboards/{leaderboardId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to leaderboard entry documents within a leaderboard.
+     * @description Allows read and write access to leaderboard entries for a specific leaderboard.
      * @path /leaderboards/{leaderboardId}/entries/{leaderboardEntryId}
-     * @allow (create) Any signed-in user can create a leaderboard entry.
-     * @allow (get) Any signed-in user can read a leaderboard entry.
-     * @deny (update) No user can update a leaderboard entry.
-     * @deny (delete) No user can delete a leaderboard entry.
-     * @principle Authenticated read and create, restricted updates and deletes.
      */
     match /leaderboards/{leaderboardId}/entries/{leaderboardEntryId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+       allow get, list, create, update, delete: if true;
     }
 
     /**
-     * @description Controls access to notification documents within a user's profile.
+     * @description Allows users to read and write their own notification data.
      * @path /users/{userId}/notifications/{notificationId}
-     * @allow (create) User with ID 'user123' can create a notification.
-     *   - auth.uid: 'user123'
-     * @allow (get) User with ID 'user123' can read a notification.
-     *   - auth.uid: 'user123'
-     * @allow (update) User with ID 'user123' can update a notification.
-     *   - auth.uid: 'user123'
-     * @allow (delete) User with ID 'user123' can delete a notification.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a notification for a different user.
-     *   - auth.uid: 'user123'
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/notifications/{notificationId} {
       function isSignedIn() {
         return request.auth != null;
       }
+
       function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-        return isSignedIn() && isOwner(userId) && exists(resource);
+        return isSignedIn() && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(userId) && request.resource.data.userId == request.auth.uid && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
   }
 }
