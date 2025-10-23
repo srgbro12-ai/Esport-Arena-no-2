@@ -100,7 +100,7 @@ export default function ChannelPageComponent({
   }
 
   if (!targetUser || !targetUser.displayName) { // Check if channel is created by looking for displayName
-    if (isMyChannel) {
+    if (isMyChannel && currentUser) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-center p-10">
                 <h2 className="text-2xl font-bold mb-4">You don't have a channel yet.</h2>
@@ -605,3 +605,5 @@ export default function ChannelPageComponent({
     </div>
   );
 }
+
+    

@@ -1,7 +1,9 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, Dispatch, SetStateAction } from 'react';
+import React, { createContext, useContext, useState, ReactNode, Dispatch, SetStateAction, useEffect } from 'react';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 interface Link {
     title: string;
@@ -53,6 +55,35 @@ const initialProfile: Profile = {
 export const ProfileProvider = ({ children, initialTargetUser }: { children: ReactNode, initialTargetUser?: any }) => {
     const [profile, setProfile] = useState<Profile>(initialProfile);
     const [targetUser, setTargetUser] = useState(initialTargetUser || null);
+    const { user: currentUser } = useUser();
+    const firestore = useFirestore();
+
+    useEffect(() => {
+        if (currentUser && firestore) {
+            const userRef = doc(firestore, 'users', currentUser.uid);
+            const unsubscribe = onSnapshot(userRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const userData = docSnap.data();
+                    setProfile(prev => ({
+                        ...prev,
+                        id: docSnap.id,
+                        name: userData.displayName || '',
+                        handle: userData.username ? `@${userData.username}` : '',
+                        avatarUrl: userData.avatarUrl || prev.avatarUrl,
+                        bannerUrl: userData.bannerUrl || prev.bannerUrl,
+                        description: userData.description || '',
+                        email: userData.email || '',
+                        links: userData.links || [],
+                        dob: userData.dob || '',
+                        gender: userData.gender || '',
+                    }));
+                }
+            });
+            return () => unsubscribe();
+        } else {
+            setProfile(initialProfile);
+        }
+    }, [currentUser, firestore]);
 
     const updateAvatar = (url: string) => {
         setProfile(p => ({ ...p, avatarUrl: url }));
@@ -80,3 +111,5 @@ export const useProfile = () => {
     }
     return context;
 };
+
+    
