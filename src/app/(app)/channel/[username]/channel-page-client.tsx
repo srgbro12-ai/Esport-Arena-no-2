@@ -69,8 +69,7 @@ export default function ChannelPageComponent({
   const firestore = useFirestore();
   const router = useRouter();
 
-  const { profile, updateAvatar, updateBanner } = useProfile();
-  const [targetUser, setTargetUser] = useState<any>(null);
+  const { profile, updateAvatar, updateBanner, targetUser, setTargetUser } = useProfile();
   const [isFetchingTargetUser, setIsFetchingTargetUser] = useState(true);
 
   const isMyChannel = currentUser?.uid === targetUser?.id;
@@ -118,7 +117,7 @@ export default function ChannelPageComponent({
     };
 
     fetchUser();
-  }, [firestore, channelUsername, currentUser, profile]);
+  }, [firestore, channelUsername, currentUser, profile.handle, setTargetUser]);
 
 
   const channelInfo = isMyChannel ? {
@@ -666,3 +665,5 @@ export default function ChannelPageComponent({
     </div>
   );
 }
+
+    

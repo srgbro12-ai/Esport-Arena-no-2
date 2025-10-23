@@ -52,9 +52,9 @@ const initialProfile: Profile = {
     gender: '',
 };
 
-export const ProfileProvider = ({ children, initialTargetUser }: { children: ReactNode, initialTargetUser?: any }) => {
+export const ProfileProvider = ({ children }: { children: ReactNode }) => {
     const [profile, setProfile] = useState<Profile>(initialProfile);
-    const [targetUser, setTargetUser] = useState(initialTargetUser || null);
+    const [targetUser, setTargetUser] = useState(null);
     const { user: currentUser } = useUser();
     const firestore = useFirestore();
 
