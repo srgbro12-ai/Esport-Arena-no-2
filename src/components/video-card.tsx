@@ -76,12 +76,12 @@ export function VideoCard({ video }: VideoCardProps) {
             </CardContent>
         </Card>
         <div className="mt-3 flex gap-3">
-            <a href={`/channel/${user?.username || video.channelId}`} onClick={handleAvatarClick} className="flex-shrink-0">
+            <div onClick={handleAvatarClick} className="flex-shrink-0 cursor-pointer">
                 <Avatar className="h-9 w-9">
                     <AvatarImage src={channelInfo.avatarUrl} />
                     <AvatarFallback>{channelInfo.name.charAt(0)}</AvatarFallback>
                 </Avatar>
-            </a>
+            </div>
             <div>
                 <h3 className="font-semibold text-sm leading-tight group-hover:text-primary transition-colors line-clamp-2">{video.title}</h3>
                 <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
