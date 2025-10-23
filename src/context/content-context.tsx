@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { mockVideos } from '@/lib/mock-data';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, subDays } from 'date-fns';
 
 interface Video {
     id: string;
@@ -45,6 +45,15 @@ interface Playlist {
     title: string;
 }
 
+export type Transaction = {
+  id: string;
+  type: 'add_money' | 'withdraw' | 'entry_fee' | 'prize';
+  status: 'Completed' | 'Pending' | 'Failed' | 'Paid' | 'Won';
+  date: string;
+  amount: number;
+};
+
+
 interface ContentContextType {
     videos: Video[];
     shorts: Short[];
@@ -55,17 +64,29 @@ interface ContentContextType {
     addPost: (post: Omit<Post, 'id' | 'posted' | 'postedDate'>) => void;
     addPlaylist: (title: string) => void;
     getSubscriberCount: (channelId: string) => number;
+    walletBalance: number;
+    transactions: Transaction[];
 }
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
 
 const otherChannels = ['GodLike Esports', 'TSM Entity', 'ScoutOP', 'Mortal'];
 
+const mockTransactions: Transaction[] = [
+    { id: '1', type: 'prize', status: 'Won', date: format(subDays(new Date(), 1), 'MMM dd, yyyy'), amount: 1500 },
+    { id: '2', type: 'withdraw', status: 'Completed', date: format(subDays(new Date(), 2), 'MMM dd, yyyy'), amount: -500 },
+    { id: '3', type: 'entry_fee', status: 'Paid', date: format(subDays(new Date(), 5), 'MMM dd, yyyy'), amount: -100 },
+    { id: '4', type: 'add_money', status: 'Completed', date: format(subDays(new Date(), 7), 'MMM dd, yyyy'), amount: 1000 },
+    { id: '5', type: 'withdraw', status: 'Pending', date: format(subDays(new Date(), 8), 'MMM dd, yyyy'), amount: -200 },
+];
+
 export const ContentProvider = ({ children }: { children: ReactNode }) => {
     const [videos, setVideos] = useState<Video[]>(mockVideos.map((v, i) => ({...v, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 14), likeCount: Math.floor(Math.random() * 10000) })));
     const [shorts, setShorts] = useState<Short[]>(mockVideos.map((v, i) => ({...v, id: `s-${v.id}`, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true, likeCount: Math.floor(Math.random() * 5000) })));
     const [posts, setPosts] = useState<Post[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+    const [walletBalance, setWalletBalance] = useState(mockTransactions.reduce((acc, tx) => acc + tx.amount, 0));
     
     const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({
         'GodLike Esports': 5400000,
@@ -125,7 +146,7 @@ export const ContentProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <ContentContext.Provider value={{ videos, shorts, posts, playlists, addVideo, addShort, addPost, addPlaylist, getSubscriberCount }}>
+        <ContentContext.Provider value={{ videos, shorts, posts, playlists, addVideo, addShort, addPost, addPlaylist, getSubscriberCount, walletBalance, transactions }}>
             {children}
         </ContentContext.Provider>
     );
