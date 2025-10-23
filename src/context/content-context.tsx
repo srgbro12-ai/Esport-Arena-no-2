@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { mockVideos } from '@/lib/mock-data';
-import { format, formatDistanceToNow, subDays } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 
 interface Video {
     id: string;
@@ -73,11 +73,11 @@ const ContentContext = createContext<ContentContextType | undefined>(undefined);
 const otherChannels = ['GodLike Esports', 'TSM Entity', 'ScoutOP', 'Mortal'];
 
 const mockTransactions: Transaction[] = [
-    { id: '1', type: 'prize', status: 'Won', date: format(subDays(new Date(), 1), 'MMM dd, yyyy'), amount: 1500 },
-    { id: '2', type: 'withdraw', status: 'Completed', date: format(subDays(new Date(), 2), 'MMM dd, yyyy'), amount: -500 },
-    { id: '3', type: 'entry_fee', status: 'Paid', date: format(subDays(new Date(), 5), 'MMM dd, yyyy'), amount: -100 },
-    { id: '4', type: 'add_money', status: 'Completed', date: format(subDays(new Date(), 7), 'MMM dd, yyyy'), amount: 1000 },
-    { id: '5', type: 'withdraw', status: 'Pending', date: format(subDays(new Date(), 8), 'MMM dd, yyyy'), amount: -200 },
+    { id: '1', type: 'prize', status: 'Won', date: 'Oct 26, 2024', amount: 1500 },
+    { id: '2', type: 'withdraw', status: 'Completed', date: 'Oct 25, 2024', amount: -500 },
+    { id: '3', type: 'entry_fee', status: 'Paid', date: 'Oct 22, 2024', amount: -100 },
+    { id: '4', type: 'add_money', status: 'Completed', date: 'Oct 20, 2024', amount: 1000 },
+    { id: '5', type: 'withdraw', status: 'Pending', date: 'Oct 19, 2024', amount: -200 },
 ];
 
 export const ContentProvider = ({ children }: { children: ReactNode }) => {
