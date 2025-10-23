@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
@@ -53,6 +54,12 @@ export type Transaction = {
   amount: number;
 };
 
+interface JoinTournamentArgs {
+    id: number;
+    fee: number;
+    title: string;
+}
+
 
 interface ContentContextType {
     videos: Video[];
@@ -68,7 +75,7 @@ interface ContentContextType {
     transactions: Transaction[];
     tournaments: typeof mockTournaments;
     joinedTournamentIds: number[];
-    joinTournament: (id: number) => void;
+    joinTournament: (args: JoinTournamentArgs) => { success: boolean; message: string };
 }
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
@@ -84,8 +91,8 @@ const mockTransactions: Transaction[] = [
 ];
 
 export const ContentProvider = ({ children }: { children: ReactNode }) => {
-    const [videos, setVideos] = useState<Video[]>(mockVideos.map((v, i) => ({...v, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 14), likeCount: Math.floor(Math.random() * 10000) })));
-    const [shorts, setShorts] = useState<Short[]>(mockVideos.map((v, i) => ({...v, id: `s-${v.id}`, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(new Date().getTime() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true, likeCount: Math.floor(Math.random() * 5000) })));
+    const [videos, setVideos] = useState<Video[]>(mockVideos.map((v, i) => ({...v, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 14), likeCount: Math.floor(Math.random() * 10000) })));
+    const [shorts, setShorts] = useState<Short[]>(mockVideos.map((v, i) => ({...v, id: `s-${v.id}`, channelId: otherChannels[i % otherChannels.length], postedDate: new Date(Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 7), isShort: true, likeCount: Math.floor(Math.random() * 5000) })));
     const [posts, setPosts] = useState<Post[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
@@ -150,9 +157,32 @@ export const ContentProvider = ({ children }: { children: ReactNode }) => {
         setPlaylists(prev => [...prev, newPlaylist]);
     };
 
-    const joinTournament = (id: number) => {
+    const joinTournament = (args: JoinTournamentArgs) => {
+        const { id, fee, title } = args;
+
+        if (joinedTournamentIds.includes(id)) {
+            return { success: false, message: "You have already joined this tournament." };
+        }
+
+        if (walletBalance < fee) {
+            return { success: false, message: "Insufficient wallet balance to join." };
+        }
+
+        setWalletBalance(prev => prev - fee);
         setJoinedTournamentIds(prev => [...prev, id]);
+        
+        const newTransaction: Transaction = {
+            id: `tx${transactions.length + 1}`,
+            type: 'entry_fee',
+            status: 'Paid',
+            date: new Date().toLocaleDateString('en-CA'),
+            amount: -fee,
+        };
+        setTransactions(prev => [newTransaction, ...prev]);
+
+        return { success: true, message: `Successfully joined ${title}!` };
     };
+
 
     return (
         <ContentContext.Provider value={{ videos, shorts, posts, playlists, addVideo, addShort, addPost, addPlaylist, getSubscriberCount, walletBalance, transactions, tournaments, joinedTournamentIds, joinTournament }}>
