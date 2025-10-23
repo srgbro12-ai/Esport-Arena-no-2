@@ -1,9 +1,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { useContent } from '@/context/content-context';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { mockUser, mockLeaderboard } from '@/lib/mock-data';
+import { useFirestore, useUser } from '@/firebase';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { collection } from 'firebase/firestore';
+
 
 type VideoCardProps = {
   video: {
@@ -18,32 +22,36 @@ type VideoCardProps = {
   };
 };
 
-const getChannelInfo = (channelId: string) => {
-    if (channelId === mockUser.username) {
+const getChannelInfo = (channelId: string, users: any[] | null) => {
+    const user = users?.find(u => u.id === channelId);
+    if (user) {
         return {
-            name: mockUser.name,
-            avatarUrl: mockUser.avatarUrl,
+            name: user.username,
+            avatarUrl: user.profilePicture || 'https://placehold.co/40x40.png',
         }
     }
     
-    const leaderboardUser = mockLeaderboard.find(u => u.name === channelId);
-    if(leaderboardUser) {
-        return {
-            name: leaderboardUser.name,
-            avatarUrl: leaderboardUser.avatarUrl
-        }
-    }
-    
-    // In a real app, you'd fetch this from a DB
+    // Fallback or loading state
     return {
-        name: channelId,
+        name: 'Loading...',
         avatarUrl: 'https://placehold.co/40x40.png'
     }
 }
 
 
 export function VideoCard({ video }: VideoCardProps) {
-  const channelInfo = getChannelInfo(video.channelId);
+  const firestore = useFirestore();
+  const usersCollection = firestore ? collection(firestore, 'users') : null;
+  const { data: users } = useCollection(usersCollection);
+  
+  const channelInfo = getChannelInfo(video.channelId, users);
+  const router = useRouter();
+
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    router.push(`/channel/${video.channelId}`);
+  };
 
   return (
     <Link href={`/watch?v=${video.id}`} className="group block">
@@ -63,12 +71,12 @@ export function VideoCard({ video }: VideoCardProps) {
             </CardContent>
         </Card>
         <div className="mt-3 flex gap-3">
-            <Link href={`/channel/${video.channelId}`} className="flex-shrink-0">
+            <a href={`/channel/${video.channelId}`} onClick={handleAvatarClick} className="flex-shrink-0">
                 <Avatar className="h-9 w-9">
                     <AvatarImage src={channelInfo.avatarUrl} />
                     <AvatarFallback>{channelInfo.name.charAt(0)}</AvatarFallback>
                 </Avatar>
-            </Link>
+            </a>
             <div>
                 <h3 className="font-semibold text-sm leading-tight group-hover:text-primary transition-colors line-clamp-2">{video.title}</h3>
                 <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
