@@ -22,8 +22,10 @@ import {
   signInWithPhoneNumber,
   ConfirmationResult,
   getAdditionalUserInfo,
+  User as FirebaseUser,
 } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,17 +59,36 @@ export default function LoginPage() {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   
   const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+
+  const handleSuccessfulLogin = async (user: FirebaseUser, isNewUser: boolean) => {
+    if (!firestore) return;
+
+    if (isNewUser) {
+      const userRef = doc(firestore, 'users', user.uid);
+      await setDoc(userRef, {
+        email: user.email,
+        username: user.email?.split('@')[0] || `user_${user.uid.substring(0, 5)}`,
+        id: user.uid,
+        joinDate: new Date().toISOString(),
+        profilePicture: user.photoURL,
+      });
+      toast({ title: "Account created successfully!" });
+      router.push('/complete-profile');
+    } else {
+       toast({ title: "Successfully signed in!" });
+       router.push('/home');
+    }
+  };
 
   const setupRecaptcha = () => {
     if (!auth) return;
     if (!(window as any).recaptchaVerifier) {
       (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         'size': 'invisible',
-        'callback': (response: any) => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
-        },
+        'callback': (response: any) => {},
       });
     }
   };
@@ -85,7 +106,6 @@ export default function LoginPage() {
     } catch (error: any) {
       console.error(error);
       toast({ variant: "destructive", title: "Failed to send OTP", description: error.message });
-      // Reset reCAPTCHA
        if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.render().then((widgetId: any) => {
           (window as any).grecaptcha.reset(widgetId);
@@ -98,17 +118,11 @@ export default function LoginPage() {
     if (!confirmationResult) return;
     try {
       const result = await confirmationResult.confirm(otp);
-      const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
-      toast({ title: "Successfully signed in!" });
-      // Reset state
+      const isNewUser = getAdditionalUserInfo(result)?.isNewUser ?? true;
       setIsOtpSent(false);
       setOtp('');
       setPhone('');
-      if(isNewUser) {
-        router.push('/complete-profile');
-      } else {
-        router.push('/home');
-      }
+      await handleSuccessfulLogin(result.user, isNewUser);
     } catch (error: any) {
       console.error(error);
       toast({ variant: "destructive", title: "Invalid OTP", description: error.message });
@@ -120,14 +134,8 @@ export default function LoginPage() {
     try {
       if (auth) {
         const result = await signInWithPopup(auth, provider);
-        const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
-
-        toast({ title: `Successfully ${isNewUser ? 'signed up' : 'signed in'} with Google!` });
-        if(isNewUser) {
-            router.push('/complete-profile');
-        } else {
-            router.push('/home');
-        }
+        const isNewUser = getAdditionalUserInfo(result)?.isNewUser ?? false;
+        await handleSuccessfulLogin(result.user, isNewUser);
       }
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -146,13 +154,11 @@ export default function LoginPage() {
     if (!auth) return;
     try {
       if (authMode === 'signin') {
-        await signInWithEmailAndPassword(auth, email, password);
-        toast({ title: "Successfully signed in!" });
-        router.push('/home');
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        await handleSuccessfulLogin(result.user, false);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-        toast({ title: "Account created successfully!" });
-        router.push('/complete-profile');
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        await handleSuccessfulLogin(result.user, true);
       }
     } catch (error: any) {
       console.error(error);

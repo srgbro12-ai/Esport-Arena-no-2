@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -39,11 +40,12 @@ import {
   MessageCircleQuestion,
 } from 'lucide-react';
 import { AppHeader } from '@/components/app-header';
-import { mockUser } from '@/lib/mock-data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ContentProvider } from '@/context/content-context';
-import { ProfileProvider } from '@/context/ProfileContext';
+import { ProfileProvider, useProfile } from '@/context/ProfileContext';
+import { useUser } from '@/firebase';
+
 
 const studioNavItems = [
   { href: '/studio/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -67,22 +69,25 @@ const mainNavItems = [
   { href: '/messages', icon: MessageSquare, label: 'Messages' },
 ];
 
-
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useUser();
+  const { profile } = useProfile();
   const isStudioPage = pathname.startsWith('/studio');
+
+  const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
 
   const sidebarContent = isStudioPage ? (
     <>
       <SidebarHeader className="p-4">
-        <Link href={`/channel/${mockUser.username}`} className="flex flex-col items-center text-center gap-2 w-full">
+        <Link href={channelUsername ? `/channel/${channelUsername}` : '#'} className="flex flex-col items-center text-center gap-2 w-full">
           <Avatar className="w-16 h-16 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 transition-all">
-            <AvatarImage src={mockUser.avatarUrl} alt={mockUser.name} />
-            <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
+            <AvatarImage src={profile.avatarUrl} alt={profile.name} />
+            <AvatarFallback>{profile.name?.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="group-data-[collapsible=icon]:hidden">
             <p className="font-semibold">Your Channel</p>
-            <p className="text-xs text-muted-foreground">{mockUser.name}</p>
+            <p className="text-xs text-muted-foreground">{profile.name}</p>
           </div>
         </Link>
       </SidebarHeader>
@@ -168,7 +173,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname.startsWith(`/channel`)} tooltip={{children: 'My Channel'}}>
-                <Link href={`/channel/${mockUser.username}`}>
+                <Link href={channelUsername ? `/channel/${channelUsername}` : (user ? '/complete-profile' : '/login')}>
                 <User className="icon-glow" />
                 <span>My Channel</span>
               </Link>
@@ -180,7 +185,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ProfileProvider>
       <ContentProvider>
         <SidebarProvider>
           <Sidebar side="left" variant="sidebar" collapsible="icon">
@@ -200,6 +204,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </SidebarProvider>
       </ContentProvider>
+  );
+}
+
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ProfileProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
     </ProfileProvider>
   );
 }

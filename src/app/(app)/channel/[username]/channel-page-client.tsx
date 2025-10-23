@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { Suspense, useRef, useState, useEffect, useMemo } from 'react';
@@ -51,35 +52,8 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
-import { useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, query, where, getDocs } from 'firebase/firestore';
-
-const getOtherChannelData = (channelId: string, allContent: any[], getSubscriberCount: (id: string) => number) => {
-    const channelContent = allContent.filter(c => c.channelId === channelId);
-    
-    const subscribers = getSubscriberCount(channelId);
-
-    const formatSubscribers = (num: number) => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return Math.floor(num).toLocaleString();
-    };
-
-    return {
-        id: channelId,
-        name: channelId,
-        handle: `@${channelId.toLowerCase().replace(/\s+/g, '')}`,
-        avatarUrl: 'https://placehold.co/128x128.png',
-        dataAiHint: 'channel logo',
-        bannerUrl: 'https://placehold.co/1080x240.png',
-        bannerHint: 'abstract background',
-        subscribers: `${formatSubscribers(subscribers)} Subscribers`,
-        videoCount: channelContent.length,
-        isVerified: false,
-        description: `Welcome to the official channel of ${channelId}!`,
-        links: [],
-    }
-}
+import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, doc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 export default function ChannelPageComponent({
   username: channelUsername,
@@ -91,7 +65,7 @@ export default function ChannelPageComponent({
   const { toast } = useToast();
   
   const { videos, shorts, posts, getSubscriberCount, addPost, addPlaylist, playlists } = useContent();
-  const { user: currentUser, isUserLoading } = useAuth();
+  const { user: currentUser, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
 
@@ -126,15 +100,44 @@ export default function ChannelPageComponent({
     return doc(firestore, 'users', targetUserId, 'channel', targetUserId);
   }, [firestore, targetUserId]);
 
-  const { data: channel, isLoading: isChannelLoading } = useDoc(channelRef);
+  const { data: channel, isLoading: isChannelLoading } = useDoc<{
+        channelName: string;
+        handle: string;
+        avatarUrl: string;
+        bannerUrl: string;
+        channelDescription: string;
+        verificationBadge: boolean;
+        subscriberCount: number;
+        videoCount: number;
+        links: any[];
+    }>(channelRef);
 
-  const { profile, updateAvatar, updateBanner } = useProfile();
+  const { profile, updateAvatar, updateBanner, updateProfile, setProfile } = useProfile();
 
   const [liveSubscriberCount, setLiveSubscriberCount] = useState(0);
 
   const isLoading = isUserLoading || isChannelLoading || isLoadingUserId;
 
   const isMyChannel = currentUser?.uid === targetUserId;
+
+  useEffect(() => {
+    if (isMyChannel && channel) {
+      setProfile({
+        id: targetUserId || '',
+        name: channel.channelName || '',
+        handle: channel.handle || '',
+        avatarUrl: channel.avatarUrl || 'https://placehold.co/128x128.png',
+        bannerUrl: channel.bannerUrl || 'https://placehold.co/1080x240.png',
+        description: channel.channelDescription || '',
+        email: currentUser?.email || '',
+        links: channel.links || [],
+        dob: '', // Assuming dob/gender are not in channel doc
+        gender: '',
+        dataAiHint: 'user avatar',
+        bannerHint: 'channel banner'
+      });
+    }
+  }, [channel, isMyChannel, currentUser, targetUserId, setProfile]);
 
   useEffect(() => {
     if (channel) {
@@ -149,7 +152,7 @@ export default function ChannelPageComponent({
   if (!channel) {
     if (isMyChannel) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-10">
+            <div className="flex flex-col items-center justify-center h-[50vh] text-center p-10">
                 <h2 className="text-2xl font-bold mb-4">You don't have a channel yet.</h2>
                 <p className="text-muted-foreground mb-6">Create your channel to start uploading videos, creating posts, and more.</p>
                 <Button onClick={() => router.push('/complete-profile')}>Create Channel</Button>
@@ -162,13 +165,13 @@ export default function ChannelPageComponent({
   const channelData = {
     name: channel.channelName,
     handle: channel.handle,
-    avatarUrl: channel.avatarUrl,
+    avatarUrl: channel.avatarUrl || 'https://placehold.co/128x128.png',
     dataAiHint: 'user avatar',
-    bannerUrl: channel.bannerUrl,
+    bannerUrl: channel.bannerUrl || 'https://placehold.co/1080x240.png',
     bannerHint: 'channel banner',
     description: channel.channelDescription,
     isVerified: channel.verificationBadge,
-    subscribers: `${(liveSubscriberCount / 1000).toFixed(1)}K Subscribers`,
+    subscribers: `${(liveSubscriberCount || 0).toLocaleString()} Subscribers`,
     videoCount: channel.videoCount || 0,
     links: channel.links || [],
   };
@@ -183,25 +186,43 @@ export default function ChannelPageComponent({
 
   const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && firestore && currentUser && isMyChannel) {
       const reader = new FileReader();
-      reader.onload = () => {
-          updateAvatar(reader.result as string);
-          toast({ title: "Profile picture updated!" });
+      reader.onload = async () => {
+        const newAvatarUrl = reader.result as string;
+        updateAvatar(newAvatarUrl); // Optimistic UI update
+        const userChannelRef = doc(firestore, 'users', currentUser.uid, 'channel', currentUser.uid);
+        try {
+          await updateDoc(userChannelRef, { avatarUrl: newAvatarUrl });
+          toast({ title: 'Profile picture updated!' });
+        } catch (error) {
+          console.error(error);
+          toast({ title: 'Failed to update picture', variant: 'destructive' });
+          updateAvatar(profile.avatarUrl); // Revert on failure
+        }
       };
       reader.readAsDataURL(file);
     }
   };
   
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && firestore && currentUser && isMyChannel) {
       const reader = new FileReader();
-      reader.onload = () => {
-          updateBanner(reader.result as string);
+      reader.onload = async () => {
+        const newBannerUrl = reader.result as string;
+        updateBanner(newBannerUrl); // Optimistic UI update
+        const userChannelRef = doc(firestore, 'users', currentUser.uid, 'channel', currentUser.uid);
+        try {
+          await updateDoc(userChannelRef, { bannerUrl: newBannerUrl });
           toast({ title: 'Channel banner updated!' });
+        } catch (error) {
+          console.error(error);
+          toast({ title: 'Failed to update banner', variant: 'destructive' });
+          updateBanner(profile.bannerUrl); // Revert on failure
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -621,7 +642,7 @@ export default function ChannelPageComponent({
                         <div className="py-3 flex justify-between items-center"><span><strong>User ID:</strong></span> <span className="font-mono">{currentUser?.uid}</span></div>
                         <div className="py-3 flex justify-between items-center"><span><strong>Email:</strong></span> <span>{currentUser?.email}</span></div>
                         <div className="py-3 flex justify-between items-center"><span><strong>Phone:</strong></span> <span>{currentUser?.phoneNumber || "Not provided"}</span></div>
-                        <div className="py-3 flex justify-between items-center"><span><strong>Wallet Balance:</strong></span> <span className="font-bold text-yellow-400">1,500 SR Coin</span></div>
+                        <div className="py-3 flex justify-between items-center"><span><strong>Wallet Balance:</strong></span> <span className="font-bold text-yellow-400">0 SR Coin</span></div>
                         <div className="pt-4">
                             <Button variant="destructive" className="w-full">Logout</Button>
                         </div>
@@ -634,5 +655,3 @@ export default function ChannelPageComponent({
     </div>
   );
 }
-
-    

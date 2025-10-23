@@ -1,7 +1,7 @@
+
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { mockUser } from '@/lib/mock-data';
+import React, { createContext, useContext, useState, ReactNode, Dispatch, SetStateAction } from 'react';
 
 interface Link {
     title: string;
@@ -25,24 +25,25 @@ interface Profile {
 
 interface ProfileContextType {
     profile: Profile;
+    setProfile: Dispatch<SetStateAction<Profile>>;
     updateAvatar: (url: string) => void;
     updateBanner: (url: string) => void;
-    updateProfile: (updates: Partial<Omit<Profile, 'id' | 'avatarUrl' | 'bannerUrl'>>) => void;
+    updateProfile: (updates: Partial<Omit<Profile, 'id'>>) => void;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
 const initialProfile: Profile = {
-    id: mockUser.username,
-    name: mockUser.name,
-    handle: `@${mockUser.username}`,
-    avatarUrl: mockUser.avatarUrl || 'https://placehold.co/128x128.png',
+    id: '',
+    name: '',
+    handle: '',
+    avatarUrl: 'https://placehold.co/128x128.png',
     dataAiHint: 'user avatar',
-    bannerUrl: mockUser.channelBannerUrl || 'https://placehold.co/1080x240.png',
+    bannerUrl: 'https://placehold.co/1080x240.png',
     bannerHint: 'abstract gaming',
-    description: mockUser.description,
-    email: 'srbrolive99@gmail.com',
-    links: [{ title: 'Instagram', url: 'https://instagram.com/srbrolive99' }],
+    description: '',
+    email: '',
+    links: [],
     dob: '',
     gender: '',
 };
@@ -58,12 +59,12 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
         setProfile(p => ({ ...p, bannerUrl: url }));
     };
     
-    const updateProfile = (updates: Partial<Omit<Profile, 'id' | 'avatarUrl' | 'bannerUrl'>>) => {
+    const updateProfile = (updates: Partial<Omit<Profile, 'id'>>) => {
         setProfile(p => ({ ...p, ...updates }));
     };
 
     return (
-        <ProfileContext.Provider value={{ profile, updateAvatar, updateBanner, updateProfile }}>
+        <ProfileContext.Provider value={{ profile, setProfile, updateAvatar, updateBanner, updateProfile }}>
             {children}
         </ProfileContext.Provider>
     );

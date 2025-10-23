@@ -1,3 +1,4 @@
+
 'use client';
 import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
@@ -5,11 +6,15 @@ import { Button } from '@/components/ui/button';
 import { useProfile } from '@/context/ProfileContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function CompleteProfilePage() {
-    const { profile, updateAvatar, updateProfile } = useProfile();
+    const { profile, updateAvatar, updateProfile, setProfile } = useProfile();
     const router = useRouter();
     const { toast } = useToast();
+    const { user } = useUser();
+    const firestore = useFirestore();
 
     const [displayName, setDisplayName] = useState('');
     const [handle, setHandle] = useState('');
@@ -17,6 +22,15 @@ export default function CompleteProfilePage() {
     const [gender, setGender] = useState('');
 
     const profilePicInputRef = useRef<HTMLInputElement>(null);
+
+     useEffect(() => {
+        if (user) {
+            setProfile(prev => ({ ...prev, avatarUrl: user.photoURL || 'https://placehold.co/128x128.png' }));
+            setDisplayName(user.displayName || '');
+            setHandle(user.email?.split('@')[0] || '');
+        }
+    }, [user, setProfile]);
+
 
     const handleProfilePicChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -31,13 +45,54 @@ export default function CompleteProfilePage() {
         }
     };
     
-    const handleSave = () => {
-        updateProfile({ name: displayName, handle: `@${handle}`, dob, gender });
-        toast({
-            title: "Profile completed!",
-            description: "Welcome to Esport Arena!",
-        });
-        router.push('/home');
+    const handleSave = async () => {
+        if (!user || !firestore) {
+            toast({ title: 'You must be logged in.', variant: 'destructive' });
+            return;
+        }
+        if (!displayName || !handle) {
+            toast({ title: 'Please enter a channel name and handle.', variant: 'destructive' });
+            return;
+        }
+
+        const newProfileData = {
+             name: displayName, 
+             handle: `@${handle}`, 
+             dob, 
+             gender,
+             avatarUrl: profile.avatarUrl,
+        };
+        updateProfile(newProfileData);
+
+        try {
+            const channelRef = doc(firestore, 'users', user.uid, 'channel', user.uid);
+            await setDoc(channelRef, {
+                channelName: displayName,
+                handle: `@${handle}`,
+                avatarUrl: profile.avatarUrl,
+                bannerUrl: 'https://placehold.co/1080x240.png',
+                channelDescription: `Welcome to the channel of ${displayName}!`,
+                verificationBadge: false,
+                subscriberCount: 0,
+                videoCount: 0,
+                links: [],
+                userId: user.uid,
+            });
+
+            // Also update the main user document with the new username/handle
+            const userRef = doc(firestore, 'users', user.uid);
+            await setDoc(userRef, { username: handle }, { merge: true });
+
+
+            toast({
+                title: "Channel created!",
+                description: "Welcome to Esport Arena!",
+            });
+            router.push(`/channel/${handle}`);
+        } catch (error) {
+            console.error("Error creating channel: ", error);
+            toast({ title: 'Failed to create channel', variant: 'destructive' });
+        }
     };
 
     return (
@@ -89,7 +144,8 @@ export default function CompleteProfilePage() {
 
             <div className="bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700">
                 <div className="space-y-6">
-                    <h2 className="text-lg font-semibold text-white">create channel profile</h2>
+                    <h2 className="text-lg font-semibold text-white">Create your channel</h2>
+                    <p className="text-sm text-gray-400">Your channel represents you on Esport Arena. Choose a name and handle to get started.</p>
                     
                     <div className="flex flex-col items-center">
                         <label htmlFor="profilePicInput" className="profile-pic-wrapper">
@@ -101,18 +157,18 @@ export default function CompleteProfilePage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="displayName" className="block text-sm font-medium text-gray-400 mb-1">channel name</label>
-                            <input id="displayName" type="text" placeholder="Aapka Naam" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                            <label htmlFor="displayName" className="block text-sm font-medium text-gray-400 mb-1">Channel Name</label>
+                            <input id="displayName" type="text" placeholder="Your Channel Name" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                         </div>
                         <div>
                             <label htmlFor="handle" className="block text-sm font-medium text-gray-400 mb-1">Username (@handle)</label>
-                            <input id="handle" type="text" placeholder="unique_handle" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" value={handle} onChange={(e) => setHandle(e.target.value)} />
+                            <input id="handle" type="text" placeholder="your_unique_handle" className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" value={handle} onChange={(e) => setHandle(e.target.value)} />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="dob" className="block text-sm font-medium text-gray-400 mb-1">date of barth</label>
+                            <label htmlFor="dob" className="block text-sm font-medium text-gray-400 mb-1">Date of Birth</label>
                             <input id="dob" type="date" className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${dob ? 'text-white' : 'text-gray-500'}`} value={dob} onChange={(e) => setDob(e.target.value)} />
                         </div>
                         <div>
@@ -130,7 +186,7 @@ export default function CompleteProfilePage() {
                             </div>
                         </div>
                     </div>
-                     <Button className="w-full bg-cyan-500 hover:bg-cyan-600" onClick={handleSave}>Save & Continue</Button>
+                     <Button className="w-full bg-cyan-500 hover:bg-cyan-600" onClick={handleSave}>Create Channel & Continue</Button>
                 </div>
             </div>
         </div>

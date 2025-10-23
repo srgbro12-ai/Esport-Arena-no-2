@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -36,9 +37,12 @@ import {
 import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { mockUser } from '@/lib/mock-data';
+import { useProfile } from '@/context/ProfileContext';
 
 export function AppHeader() {
+  const { profile } = useProfile();
+  const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur-sm px-4 md:px-6">
       <div className="flex items-center gap-2">
@@ -158,23 +162,23 @@ export function AppHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9 border-2 border-transparent group-hover:border-primary">
-                <AvatarImage src={mockUser.avatarUrl} alt={mockUser.name} />
-                <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
+                <AvatarImage src={profile.avatarUrl} alt={profile.name} />
+                <AvatarFallback>{profile.name?.charAt(0)}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{mockUser.name}</p>
+                <p className="text-sm font-medium leading-none">{profile.name}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  @{mockUser.username}
+                  {profile.handle}
                 </p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href={`/channel/${mockUser.username}`}>
+              <Link href={channelUsername ? `/channel/${channelUsername}` : '/complete-profile'}>
                 <User className="mr-2 h-4 w-4" />
                 <span>My Channel</span>
               </Link>
