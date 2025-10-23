@@ -37,6 +37,10 @@ export default function CompleteProfilePage() {
     const handleProfilePicChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
+            if (file.size > 1048487) {
+                toast({ title: 'Image too large', description: 'Please select an image smaller than 1MB.', variant: 'destructive'});
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (e) => {
                 if (e.target?.result) {
@@ -62,7 +66,8 @@ export default function CompleteProfilePage() {
             email: user.email,
             displayName: displayName, 
             username: handle,
-            avatarUrl: profile.avatarUrl,
+            // Temporarily disable saving avatar to Firestore to avoid size limit error
+            // avatarUrl: profile.avatarUrl,
             bannerUrl: 'https://placehold.co/1080x240.png',
             description: `Welcome to the channel of ${displayName}!`,
             isVerified: false,
@@ -82,7 +87,7 @@ export default function CompleteProfilePage() {
             updateProfile({
                 name: displayName,
                 handle: `@${handle}`,
-                avatarUrl: profile.avatarUrl,
+                avatarUrl: profile.avatarUrl, // Keep optimistic UI update
                 dob,
                 gender,
                 description: profileData.description,
@@ -92,7 +97,7 @@ export default function CompleteProfilePage() {
 
             toast({
                 title: "Channel created!",
-                description: "Welcome to Esport Arena!",
+                description: "Welcome to Esport Arena! Note: Profile picture not saved.",
             });
             router.push(`/channel/${handle}`);
         } catch (error) {

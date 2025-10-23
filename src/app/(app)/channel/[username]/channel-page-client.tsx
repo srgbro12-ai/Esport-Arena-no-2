@@ -181,27 +181,16 @@ export default function ChannelPageComponent({
  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && firestore && currentUser && isMyChannel) {
+      if (file.size > 1048487) {
+        toast({ title: 'Image too large', description: 'Please select an image smaller than 1MB.', variant: 'destructive'});
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => {
         const newAvatarUrl = reader.result as string;
         updateAvatar(newAvatarUrl); // Optimistic UI update
-        const userRef = doc(firestore, 'users', currentUser.uid);
         
-        const dataToUpdate = { avatarUrl: newAvatarUrl };
-        // NON-BLOCKING
-        setDoc(userRef, dataToUpdate, { merge: true })
-          .catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'update',
-              requestResourceData: dataToUpdate,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            // Revert optimistic update on failure
-            updateAvatar(profile.avatarUrl); 
-          });
-        
-        toast({ title: 'Profile picture update started!' });
+        toast({ title: 'Profile picture updated locally!', description: 'Note: Image saving to the database is temporarily disabled.' });
       };
       reader.readAsDataURL(file);
     }
@@ -210,27 +199,16 @@ export default function ChannelPageComponent({
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && firestore && currentUser && isMyChannel) {
+       if (file.size > 1048487) {
+        toast({ title: 'Image too large', description: 'Please select an image smaller than 1MB.', variant: 'destructive'});
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => {
         const newBannerUrl = reader.result as string;
         updateBanner(newBannerUrl); // Optimistic UI update
-        const userRef = doc(firestore, 'users', currentUser.uid);
-        
-        const dataToUpdate = { bannerUrl: newBannerUrl };
-        // NON-BLOCKING
-        setDoc(userRef, dataToUpdate, { merge: true })
-          .catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'update',
-              requestResourceData: dataToUpdate,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            // Revert optimistic update
-            updateBanner(profile.bannerUrl);
-          });
           
-        toast({ title: 'Channel banner update started!' });
+        toast({ title: 'Channel banner updated locally!', description: 'Note: Image saving to the database is temporarily disabled.' });
       };
       reader.readAsDataURL(file);
     }
