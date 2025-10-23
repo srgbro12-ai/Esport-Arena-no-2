@@ -72,6 +72,10 @@ export default function ChannelPageComponent({
   const { profile, updateAvatar, updateBanner, targetUser, setTargetUser } = useProfile();
   const [isFetchingTargetUser, setIsFetchingTargetUser] = useState(true);
 
+  // All hooks must be called at the top level, unconditionally.
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  
   const isMyChannel = currentUser?.uid === targetUser?.id;
 
   useEffect(() => {
@@ -120,35 +124,38 @@ export default function ChannelPageComponent({
   }, [firestore, channelUsername, currentUser, profile.handle, setTargetUser]);
 
 
-  const channelInfo = isMyChannel ? {
-      id: profile.id,
-      name: profile.name,
-      handle: profile.handle,
-      username: profile.handle.replace('@',''),
-      avatarUrl: profile.avatarUrl || 'https://placehold.co/128x128.png',
-      dataAiHint: profile.dataAiHint,
-      bannerUrl: profile.bannerUrl || 'https://placehold.co/1080x240.png',
-      bannerHint: profile.bannerHint,
-      description: profile.description,
-      isVerified: targetUser?.isVerified || false,
-      subscribers: `${(targetUser?.subscriberCount || 0).toLocaleString()} Subscribers`,
-      videoCount: targetUser?.videoCount || 0,
-      links: targetUser?.links || [],
-  } : {
-      id: targetUser?.id,
-      name: targetUser?.displayName,
-      handle: targetUser?.username ? `@${targetUser.username}` : '',
-      username: targetUser?.username,
-      avatarUrl: targetUser?.avatarUrl || 'https://placehold.co/128x128.png',
-      dataAiHint: 'user avatar',
-      bannerUrl: targetUser?.bannerUrl || 'https://placehold.co/1080x240.png',
-      bannerHint: 'channel banner',
-      description: targetUser?.description,
-      isVerified: targetUser?.isVerified,
-      subscribers: `${(targetUser?.subscriberCount || 0).toLocaleString()} Subscribers`,
-      videoCount: targetUser?.videoCount || 0,
-      links: targetUser?.links || [],
-  };
+  const channelInfo = useMemo(() => {
+    const baseInfo = isMyChannel ? {
+        id: profile.id,
+        name: profile.name,
+        handle: profile.handle,
+        username: profile.handle.replace('@',''),
+        avatarUrl: profile.avatarUrl || 'https://placehold.co/128x128.png',
+        dataAiHint: profile.dataAiHint,
+        bannerUrl: profile.bannerUrl || 'https://placehold.co/1080x240.png',
+        bannerHint: profile.bannerHint,
+        description: profile.description,
+        isVerified: targetUser?.isVerified || false,
+        subscribers: `${(targetUser?.subscriberCount || 0).toLocaleString()} Subscribers`,
+        videoCount: targetUser?.videoCount || 0,
+        links: targetUser?.links || [],
+    } : {
+        id: targetUser?.id,
+        name: targetUser?.displayName,
+        handle: targetUser?.username ? `@${targetUser.username}` : '',
+        username: targetUser?.username,
+        avatarUrl: targetUser?.avatarUrl || 'https://placehold.co/128x128.png',
+        dataAiHint: 'user avatar',
+        bannerUrl: targetUser?.bannerUrl || 'https://placehold.co/1080x240.png',
+        bannerHint: 'channel banner',
+        description: targetUser?.description,
+        isVerified: targetUser?.isVerified,
+        subscribers: `${(targetUser?.subscriberCount || 0).toLocaleString()} Subscribers`,
+        videoCount: targetUser?.videoCount || 0,
+        links: targetUser?.links || [],
+    };
+    return baseInfo;
+  }, [isMyChannel, profile, targetUser]);
 
 
   if (isUserLoading || isFetchingTargetUser) {
@@ -168,9 +175,6 @@ export default function ChannelPageComponent({
     return <div className="text-center p-10">Channel not found.</div>;
   }
   
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
-
   const channelVideos = videos.filter(video => video.channelId === channelInfo.id);
   const channelShorts = shorts.filter(short => short.channelId === channelInfo.id);
   const channelPosts = posts.filter(post => post.channelId === channelInfo.id);
