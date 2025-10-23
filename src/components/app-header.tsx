@@ -67,14 +67,6 @@ export function AppHeader() {
                 <Home className="h-5 w-5" />
                 Home
               </Link>
-              <Link href="/tournaments" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
-                <Trophy className="h-5 w-5" />
-                Tournaments
-              </Link>
-               <Link href="/leaderboard" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
-                <Trophy className="h-5 w-5" />
-                Leaderboard
-              </Link>
               <Link href="/store" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
                 <Store className="h-5 w-5" />
                 Store

@@ -1,3 +1,4 @@
+
 import type { ImagePlaceholder } from './placeholder-images';
 import { PlaceHolderImages } from './placeholder-images';
 
@@ -14,52 +15,7 @@ export const mockUser = {
   description: 'Official channel for SRB-Robin. Pro gamer, content creator, and streamer. Join my journey to the top!\nFollow me on Instagram: instagram.com/srbrolive99',
 };
 
-export const mockTournaments = [
-  {
-    id: '1',
-    game: 'BGMI',
-    title: 'BGMI Ultimate Showdown',
-    mode: 'Squad',
-    prize: '1,00,000',
-    entryFee: '1000',
-    date: '2024-08-15T18:00:00Z',
-    coverUrl: getImage('game-cover-bgmi')?.imageUrl,
-    hint: getImage('game-cover-bgmi')?.imageHint
-  },
-  {
-    id: '2',
-    game: 'COD Mobile',
-    title: 'COD Mobile Pro League',
-    mode: 'Solo',
-    prize: '50,000',
-    entryFee: '500',
-    date: '2024-08-18T20:00:00Z',
-    coverUrl: getImage('game-cover-cod')?.imageUrl,
-    hint: getImage('game-cover-cod')?.imageHint
-  },
-  {
-    id: '3',
-    game: 'Free Fire',
-    title: 'Free Fire Grand Masters',
-    mode: 'Duo',
-    prize: '75,000',
-    entryFee: 'Free',
-    date: '2024-08-20T16:00:00Z',
-    coverUrl: getImage('game-cover-freefire')?.imageUrl,
-    hint: getImage('game-cover-freefire')?.imageHint
-  },
-  {
-    id: '4',
-    game: 'Custom Game',
-    title: 'Community Clash',
-    mode: 'Squad',
-    prize: '10,000',
-    entryFee: '100',
-    date: '2024-08-22T19:00:00Z',
-    coverUrl: getImage('game-cover-custom')?.imageUrl,
-    hint: getImage('game-cover-custom')?.imageHint
-  },
-];
+export const mockTournaments: any[] = [];
 
 export const mockLeaderboard = [
   { rank: 1, name: 'Team SouL', points: 1540, avatarUrl: getImage('user-avatar-2')?.imageUrl },
