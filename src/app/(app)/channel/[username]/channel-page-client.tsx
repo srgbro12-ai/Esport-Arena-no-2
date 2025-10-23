@@ -52,7 +52,7 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
-import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, doc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 export default function ChannelPageComponent({
@@ -86,7 +86,11 @@ export default function ChannelPageComponent({
           setTargetUserId(null); // No user found with that username
         }
       } catch (error) {
-        console.error("Error fetching user ID:", error);
+        const permissionError = new FirestorePermissionError({
+          path: `users`,
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
         setTargetUserId(null);
       } finally {
         setIsLoadingUserId(false);
@@ -655,3 +659,5 @@ export default function ChannelPageComponent({
     </div>
   );
 }
+
+    
