@@ -5,7 +5,9 @@ import ChannelPageComponent from './channel-page-client';
 export default function Page({ params }: { params: { username: string } }) {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <ChannelPageComponent channelId={params.username} />
+      <ChannelPageComponent username={params.username} />
     </Suspense>
   );
 }
+
+    

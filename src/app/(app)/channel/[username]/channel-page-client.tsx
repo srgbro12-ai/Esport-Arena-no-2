@@ -1,7 +1,7 @@
 'use client';
 
-import React, { Suspense, useRef, useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { Suspense, useRef, useState, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Avatar,
   AvatarFallback,
@@ -49,15 +49,14 @@ import Link from 'next/link';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { mockUser, mockLeaderboard } from '@/lib/mock-data';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
+import { useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc, query, where, getDocs } from 'firebase/firestore';
 
 const getOtherChannelData = (channelId: string, allContent: any[], getSubscriberCount: (id: string) => number) => {
     const channelContent = allContent.filter(c => c.channelId === channelId);
     
-    const leaderboardUser = mockLeaderboard.find(u => u.name === channelId);
-
     const subscribers = getSubscriberCount(channelId);
 
     const formatSubscribers = (num: number) => {
@@ -70,7 +69,7 @@ const getOtherChannelData = (channelId: string, allContent: any[], getSubscriber
         id: channelId,
         name: channelId,
         handle: `@${channelId.toLowerCase().replace(/\s+/g, '')}`,
-        avatarUrl: leaderboardUser?.avatarUrl || 'https://placehold.co/128x128.png',
+        avatarUrl: 'https://placehold.co/128x128.png',
         dataAiHint: 'channel logo',
         bannerUrl: 'https://placehold.co/1080x240.png',
         bannerHint: 'abstract background',
@@ -82,51 +81,105 @@ const getOtherChannelData = (channelId: string, allContent: any[], getSubscriber
     }
 }
 
-
-export default function ChannelPageComponent({ channelId }: { channelId: string }) {
+export default function ChannelPageComponent({
+  username: channelUsername,
+}: {
+  username: string;
+}) {
   const searchParams = useSearchParams();
   const defaultTab = searchParams ? searchParams.get('tab') || 'home' : 'home';
   const { toast } = useToast();
   
   const { videos, shorts, posts, getSubscriberCount, addPost, addPlaylist, playlists } = useContent();
-  const [liveSubscriberCount, setLiveSubscriberCount] = useState(getSubscriberCount(channelId));
+  const { user: currentUser, isUserLoading } = useAuth();
+  const firestore = useFirestore();
+  const router = useRouter();
 
-  const isYouPage = channelId === mockUser.username;
+  const [targetUserId, setTargetUserId] = useState<string | null>(null);
+  const [isLoadingUserId, setIsLoadingUserId] = useState(true);
+
+  useEffect(() => {
+    const fetchUserId = async () => {
+      if (!firestore || !channelUsername) return;
+      setIsLoadingUserId(true);
+      try {
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where('username', '==', channelUsername));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          setTargetUserId(querySnapshot.docs[0].id);
+        } else {
+          setTargetUserId(null); // No user found with that username
+        }
+      } catch (error) {
+        console.error("Error fetching user ID:", error);
+        setTargetUserId(null);
+      } finally {
+        setIsLoadingUserId(false);
+      }
+    };
+    fetchUserId();
+  }, [firestore, channelUsername]);
+
+  const channelRef = useMemoFirebase(() => {
+    if (!firestore || !targetUserId) return null;
+    return doc(firestore, 'users', targetUserId, 'channel', targetUserId);
+  }, [firestore, targetUserId]);
+
+  const { data: channel, isLoading: isChannelLoading } = useDoc(channelRef);
+
   const { profile, updateAvatar, updateBanner } = useProfile();
 
-  let channelData;
-  if (isYouPage) {
-    channelData = {
-        ...profile,
-        subscribers: `${(liveSubscriberCount / 1000000).toFixed(2)}M Subscribers`,
-        videoCount: videos.filter(c => c.channelId === channelId).length + shorts.filter(c => c.channelId === channelId).length,
-        isVerified: mockUser.isVerified // Assuming verification status is from mock
+  const [liveSubscriberCount, setLiveSubscriberCount] = useState(0);
+
+  const isLoading = isUserLoading || isChannelLoading || isLoadingUserId;
+
+  const isMyChannel = currentUser?.uid === targetUserId;
+
+  useEffect(() => {
+    if (channel) {
+        setLiveSubscriberCount(channel.subscriberCount || 0);
     }
-  } else {
-    channelData = getOtherChannelData(channelId!, [...videos, ...shorts], getSubscriberCount);
+  }, [channel]);
+
+  if (isLoading) {
+    return <div className="text-center p-10">Loading channel...</div>;
   }
 
-
-   useEffect(() => {
-    if (isYouPage) {
-        setLiveSubscriberCount(getSubscriberCount(channelId));
-        const interval = setInterval(() => {
-            setLiveSubscriberCount(prev => prev + (Math.random() > 0.8 ? (Math.random() > 0.5 ? 1 : -1) : 0));
-        }, 2000);
-        return () => clearInterval(interval);
+  if (!channel) {
+    if (isMyChannel) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-10">
+                <h2 className="text-2xl font-bold mb-4">You don't have a channel yet.</h2>
+                <p className="text-muted-foreground mb-6">Create your channel to start uploading videos, creating posts, and more.</p>
+                <Button onClick={() => router.push('/complete-profile')}>Create Channel</Button>
+            </div>
+        );
     }
-   }, [isYouPage, channelId, getSubscriberCount]);
-
-  if (!channelData) {
-      return <div className="text-center p-10">Channel not found.</div>;
+    return <div className="text-center p-10">Channel not found.</div>;
   }
+  
+  const channelData = {
+    name: channel.channelName,
+    handle: channel.handle,
+    avatarUrl: channel.avatarUrl,
+    dataAiHint: 'user avatar',
+    bannerUrl: channel.bannerUrl,
+    bannerHint: 'channel banner',
+    description: channel.channelDescription,
+    isVerified: channel.verificationBadge,
+    subscribers: `${(liveSubscriberCount / 1000).toFixed(1)}K Subscribers`,
+    videoCount: channel.videoCount || 0,
+    links: channel.links || [],
+  };
+
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  const channelVideos = videos.filter(video => video.channelId === channelId);
-  const channelShorts = shorts.filter(short => short.channelId === channelId);
-  const channelPosts = posts.filter(post => post.channelId === channelId);
-  const channelLiveStreams = videos.filter(video => video.channelId === channelId && video.isLive);
+  const channelVideos = videos.filter(video => video.channelId === channelUsername);
+  const channelShorts = shorts.filter(short => short.channelId === channelUsername);
+  const channelPosts = posts.filter(post => post.channelId === channelUsername);
+  const channelLiveStreams = videos.filter(video => video.channelId === channelUsername && video.isLive);
 
   const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
@@ -158,7 +211,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
     <div className="container mx-auto p-4 max-w-7xl">
         <div className="relative h-48 w-full bg-secondary rounded-xl mb-4">
             {channelData.bannerUrl && <Image src={channelData.bannerUrl} alt="Channel Banner" fill className="object-cover rounded-xl" data-ai-hint={channelData.bannerHint} />}
-            {isYouPage && (
+            {isMyChannel && (
                 <>
                     <div 
                     className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer rounded-xl"
@@ -178,14 +231,14 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
         </div>
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-6 -mt-16 sm:-mt-14">
             <div 
-                className={cn("relative group flex-shrink-0", isYouPage && "cursor-pointer")}
-                onClick={() => isYouPage && avatarInputRef.current?.click()}
+                className={cn("relative group flex-shrink-0", isMyChannel && "cursor-pointer")}
+                onClick={() => isMyChannel && avatarInputRef.current?.click()}
             >
                 <Avatar className="w-32 h-32 border-8 border-background bg-background">
-                    {channelData.avatarUrl && <AvatarImage src={channelData.avatarUrl} alt={channelData.name} data-ai-hint={channelData.dataAiHint} />}
-                    <AvatarFallback>{channelData.name.substring(0, 2)}</AvatarFallback>
+                    {channelData.avatarUrl && <AvatarImage src={channelData.avatarUrl} alt={String(channelData.name)} data-ai-hint={channelData.dataAiHint} />}
+                    <AvatarFallback>{String(channelData.name)?.substring(0, 2)}</AvatarFallback>
                 </Avatar>
-                {isYouPage && (
+                {isMyChannel && (
                     <>
                         <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera className="h-8 w-8 text-white" />
@@ -208,9 +261,9 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                     {channelData.isVerified && <CheckCircle className="text-blue-400 text-xl" />}
                     </div>
                     <div className="flex items-center justify-center sm:justify-start gap-x-2 text-muted-foreground mt-1 text-sm">
-                    <Link href={`/channel/${channelId}`} className="hover:underline">{channelData.handle}</Link>
+                    <Link href={`/channel/${channelUsername}`} className="hover:underline">{channelData.handle}</Link>
                     <span>•</span>
-                    {isYouPage ? (
+                    {isMyChannel ? (
                         <Link href="/studio/analytics" className="hover:underline flex items-center gap-1.5">
                             <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
@@ -225,11 +278,11 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                     <span>{channelData.videoCount} videos</span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-2 line-clamp-1 flex items-center justify-center sm:justify-start">
-                        {channelData.description.substring(0, 50)}...
+                        {String(channelData.description)?.substring(0, 50)}...
                     </div>
                 </div>
                 <div className="mt-4 sm:mt-0 flex space-x-2 justify-center sm:justify-start">
-                    {isYouPage ? (
+                    {isMyChannel ? (
                         <>
                             <Link href="/studio/dashboard" className={cn(buttonVariants({ variant: 'secondary' }))}>MyTube Studio</Link>
                             <Link href="/studio/customization" className={cn(buttonVariants({ variant: 'secondary' }))}>Manage Profile</Link>
@@ -259,9 +312,9 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
           <TabsTrigger value="live">Live</TabsTrigger>
           <TabsTrigger value="playlists">Playlists</TabsTrigger>
           <TabsTrigger value="posts">Posts</TabsTrigger>
-          {isYouPage && <TabsTrigger value="membership">Membership</TabsTrigger>}
-          {isYouPage && <TabsTrigger value="game-ids">Game IDs</TabsTrigger>}
-          {isYouPage && <TabsTrigger value="account">Account</TabsTrigger>}
+          {isMyChannel && <TabsTrigger value="membership">Membership</TabsTrigger>}
+          {isMyChannel && <TabsTrigger value="game-ids">Game IDs</TabsTrigger>}
+          {isMyChannel && <TabsTrigger value="account">Account</TabsTrigger>}
         </TabsList>
         
         <TabsContent value="home">
@@ -336,7 +389,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                           {myAllVideos.map((video, index) => (
                               <div key={`${video.id}-${index}`}>
                                 <VideoCard video={video} />
-                                {isYouPage && (
+                                {isMyChannel && (
                                     <Link href="/studio/promotions" className="w-full">
                                         <Button variant="outline" className="w-full mt-2">
                                             <Rocket className="mr-2 h-4 w-4" /> Promote
@@ -357,7 +410,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
            <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Shorts</CardTitle>
-                {isYouPage && (
+                {isMyChannel && (
                     <Link href="/upload-short">
                         <Button variant="outline"><Upload className="mr-2 h-4 w-4" /> Upload Short</Button>
                     </Link>
@@ -369,7 +422,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                          {channelShorts.map(short => (
                             <div key={short.id}>
                                 <VideoCard video={short} />
-                                {isYouPage && (
+                                {isMyChannel && (
                                     <Link href="/studio/promotions" className="w-full">
                                         <Button variant="outline" size="sm" className="w-full mt-2">
                                             <Rocket className="mr-2 h-4 w-4" /> Promote
@@ -390,7 +443,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
           <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Live Streams</CardTitle>
-                 {isYouPage && (
+                 {isMyChannel && (
                     <Link href="/go-live">
                         <Button variant="outline"><RadioTower className="mr-2 h-4 w-4" /> Go Live</Button>
                     </Link>
@@ -417,7 +470,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
            <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Playlists</CardTitle>
-                 {isYouPage && (
+                 {isMyChannel && (
                     <Dialog>
                         <DialogTrigger asChild>
                             <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> New playlist</Button>
@@ -447,7 +500,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                                 <div className="flex items-center gap-3">
                                     <Avatar>
                                         <AvatarImage src={channelData.avatarUrl} />
-                                        <AvatarFallback>{channelData.name.substring(0,2)}</AvatarFallback>
+                                        <AvatarFallback>{String(channelData.name).substring(0,2)}</AvatarFallback>
                                     </Avatar>
                                     <div>
                                         <p className="font-semibold">{channelData.name}</p>
@@ -470,7 +523,7 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
             </div>
         </TabsContent>
 
-        {isYouPage && (
+        {isMyChannel && (
           <>
             <TabsContent value="membership">
                 <Card>
@@ -565,9 +618,9 @@ export default function ChannelPageComponent({ channelId }: { channelId: string 
                 <Card>
                     <CardHeader><CardTitle>Account Details</CardTitle></CardHeader>
                     <CardContent className="divide-y divide-border">
-                        <div className="py-3 flex justify-between items-center"><span><strong>User ID:</strong></span> <span className="font-mono">{mockUser.username}</span></div>
-                        <div className="py-3 flex justify-between items-center"><span><strong>Email:</strong></span> <span>srbrolive99@gmail.com</span></div>
-                        <div className="py-3 flex justify-between items-center"><span><strong>Phone:</strong></span> <span>+XX XXXXXX1234 (Verified <CheckCircle className="inline h-4 w-4 text-green-500"/>)</span></div>
+                        <div className="py-3 flex justify-between items-center"><span><strong>User ID:</strong></span> <span className="font-mono">{currentUser?.uid}</span></div>
+                        <div className="py-3 flex justify-between items-center"><span><strong>Email:</strong></span> <span>{currentUser?.email}</span></div>
+                        <div className="py-3 flex justify-between items-center"><span><strong>Phone:</strong></span> <span>{currentUser?.phoneNumber || "Not provided"}</span></div>
                         <div className="py-3 flex justify-between items-center"><span><strong>Wallet Balance:</strong></span> <span className="font-bold text-yellow-400">1,500 SR Coin</span></div>
                         <div className="pt-4">
                             <Button variant="destructive" className="w-full">Logout</Button>
