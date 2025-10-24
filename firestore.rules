@@ -2,375 +2,324 @@
  * @fileoverview Firestore Security Rules for Esport Arena.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user-specific data
- * and public read access for certain collections like videos and tournaments.
+ * This ruleset enforces a strict user-ownership model for user profiles and
+ * associated data like wallets, videos, delivery addresses, and notifications.
+ * Other data, such as tournaments, store items, chat messages, friendships,
+ * leaderboards, and orders, have looser controls, but all writes are still
+ * protected.
  *
  * Data Structure:
- * - User profiles and associated data (wallets, delivery addresses, notifications, videos)
- *   are nested under `/users/{userId}`.
- * - Top-level collections include `/tournaments`, `/participants`, `/store_items`,
- *   `/orders`, `/chat_messages`, `/friendships`, and `/leaderboards`.
+ * - User profiles and their associated data are nested under /users/{userId}.
+ * - Other data (tournaments, store items, chat messages, friendships, leaderboards, orders) resides in top-level collections.
  *
  * Key Security Decisions:
- * - Users can only access their own profile data, wallets, delivery addresses, notifications, and videos.
- * - Listing of all users is disallowed.
- * - Tournaments and store items are publicly readable but require authentication for creation/modification.
- * - Orders can be created by any authenticated user.
- * - Chat messages and friendships are accessible to involved users.
- * - Leaderboards are publicly readable.
+ * - Users can only read/write their own profile and associated data.
+ * - Listing of all users is denied.
+ * - Validation of data is relaxed in the prototyping phase.
  *
  * Denormalization for Authorization:
- * - Wallet, Transaction, DeliveryAddress, Participant, Order, LeaderboardEntry documents include
- *   denormalized `userId`, `tournamentId`, or `walletId` fields to simplify authorization checks and avoid costly `get()` calls.
+ * - Wallet, Transaction, DeliveryAddress, and Order documents store the userId
+ *   to enable direct ownership checks without needing to query parent documents.
  *
  * Structural Segregation:
- * - Separate collections are used for public (tournaments, store items) and private (user profiles, wallets) data.
+ * - No separation of private/public data via subcollections is used in this version.
  */
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is made by a signed-in user.
-     * @returns {boolean} True if the user is signed in, false otherwise.
+     * @description Checks if the request is authenticated.
+     * @returns {boolean} True if the request is authenticated, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the authenticated user is the owner of the resource.
-     * @param {string} userId The user ID to compare against the request's auth UID.
-     * @returns {boolean} True if the user is the owner, false otherwise.
+     * @description Checks if the request is made by the owner of the document.
+     * @param {string} userId - The user ID to compare against the request's auth UID.
+     * @returns {boolean} True if the request is made by the owner, false otherwise.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user is the existing owner of the resource.
-     * @param {string} userId The user ID to compare against the resource's data.
-     * @returns {boolean} True if the user is the owner and the resource exists, false otherwise.
+     * @description Checks if the request is made by the owner of an existing document.
+     * @param {string} userId - The user ID to compare against the document's owner ID.
+     * @returns {boolean} True if the request is made by the owner of an existing document, false otherwise.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && exists(resource);
+      return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Enforces that the incoming resource has the correct userId.
-     * @param {string} userId The user ID to compare against the resource's data.
-     * @returns {boolean} True if the resource's userId matches, false otherwise.
-     */
-    function matchesUserIdOnCreate(userId) {
-        return request.resource.data.id == userId;
-    }
-
-    /**
-     * @description Enforces that the userId on the resource cannot be changed.
-     * @param {string} userId The user ID to compare against the resource's data.
-     * @returns {boolean} True if the resource's userId matches, false otherwise.
-     */
-    function userIdIsImmutable(userId) {
-        return resource.data.id == request.resource.data.id;
-    }
-
-    /**
-     * @description Rules for user profiles.
+     * @description Rule for user profiles and channel information.
      * @path /users/{userId}
-     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own profile at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43 if the `id` matches.
-     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create a profile at /users/otherUserId.
-     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can get their profile at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43.
-     * @deny (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot get other user profile at /users/otherUserId.
-     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their profile at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43 if the `id` is immutable.
-     * @deny (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot update profile at /users/otherUserId.
-     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their profile at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43.
-     * @deny (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot delete other user profile at /users/otherUserId.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, and validates relational integrity between documents.
+     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own profile.
+     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can read their own profile.
+     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their own profile.
+     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their own profile.
+     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create another user's profile (userId !== auth.uid).
+     * @deny (get) User with UID 'randomId' cannot read user with ID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43'.
+     * @deny (list) Anyone cannot list all users.
+     * @principle Enforces document ownership for writes and restricts listing of user profiles.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if false; // Listing all users is not permitted.
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for user wallets.
+     * @description Rule for user's wallet information.
      * @path /users/{userId}/wallet
-     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own wallet at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet if the `userId` matches.
-     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create a wallet at /users/otherUserId/wallet.
-     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can get their wallet at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet.
-     * @deny (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot get other user wallet at /users/otherUserId/wallet.
-     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their wallet at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet if the `userId` is immutable.
-     * @deny (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot update wallet at /users/otherUserId/wallet.
-     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their wallet at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet.
-     * @deny (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot delete other user wallet at /users/otherUserId/wallet.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, and validates relational integrity between documents.
+     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own wallet.
+     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can read their own wallet.
+     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their own wallet.
+     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their own wallet.
+     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create another user's wallet (userId !== auth.uid).
+     * @deny (get) User with UID 'randomId' cannot read wallet of user with ID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/wallet {
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for user wallet transactions.
+     * @description Rule for transaction history for a user's wallet.
      * @path /users/{userId}/wallet/transactions/{transactionId}
-     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create a transaction at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet/transactions/{transactionId} if the `userId` matches.
-     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create a transaction at /users/otherUserId/wallet/transactions/{transactionId}.
-     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can get their transaction at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet/transactions/{transactionId}.
-     * @deny (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot get other user transaction at /users/otherUserId/wallet/transactions/{transactionId}.
-     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their transaction at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet/transactions/{transactionId} if the `userId` is immutable.
-     * @deny (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot update transaction at /users/otherUserId/wallet/transactions/{transactionId}.
-     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their transaction at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/wallet/transactions/{transactionId}.
-     * @deny (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot delete other user transaction at /users/otherUserId/wallet/transactions/{transactionId}.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, and validates relational integrity between documents.
+     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create a transaction in their own wallet.
+     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can read a transaction in their own wallet.
+     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update a transaction in their own wallet.
+     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete a transaction in their own wallet.
+     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create a transaction in another user's wallet (userId !== auth.uid).
+     * @deny (get) User with UID 'randomId' cannot read a transaction in wallet of user with ID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/wallet/transactions/{transactionId} {
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for tournaments.
+     * @description Rule for tournament information.
      * @path /tournaments/{tournamentId}
-     * @allow (get) All users can read tournament data.
-     * @allow (list) All users can list tournament data.
-     * @allow (create) Signed-in users can create tournaments.
-     * @deny (create) Unsigned-in users cannot create tournaments.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read tournament information.
+     * @allow (list) Anyone can list tournaments.
+     * @deny (create) No one can create tournaments. // TODO: Add admin validation once roles are defined.
+     * @deny (update) No one can update tournaments. // TODO: Add admin validation once roles are defined.
+     * @deny (delete) No one can delete tournaments. // TODO: Add admin validation once roles are defined.
      */
     match /tournaments/{tournamentId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add admin validation once roles are defined.
+      allow update: if false; // TODO: Add admin validation once roles are defined.
+      allow delete: if false; // TODO: Add admin validation once roles are defined.
     }
 
     /**
-     * @description Rules for matches within tournaments.
+     * @description Rule for match information for a specific tournament.
      * @path /tournaments/{tournamentId}/matches/{matchId}
-     * @allow (get) All users can read match data.
-     * @allow (list) All users can list match data.
-     * @allow (create) Signed-in users can create matches within a tournament.
-     * @deny (create) Unsigned-in users cannot create matches within a tournament.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read match information.
+     * @allow (list) Anyone can list matches.
+     * @deny (create) No one can create matches. // TODO: Add admin validation once roles are defined.
+     * @deny (update) No one can update matches. // TODO: Add admin validation once roles are defined.
+     * @deny (delete) No one can delete matches. // TODO: Add admin validation once roles are defined.
      */
     match /tournaments/{tournamentId}/matches/{matchId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add admin validation once roles are defined.
+      allow update: if false; // TODO: Add admin validation once roles are defined.
+      allow delete: if false; // TODO: Add admin validation once roles are defined.
     }
 
     /**
-     * @description Rules for participants.
+     * @description Rule for participant information.
      * @path /participants/{participantId}
-     * @allow (get) All users can read participant data.
-     * @allow (list) All users can list participant data.
-     * @allow (create) Signed-in users can create participants.
-     * @deny (create) Unsigned-in users cannot create participants.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read participant information.
+     * @allow (list) Anyone can list participants.
+     * @deny (create) No one can create participants. // TODO: Add validation once roles are defined.
+     * @deny (update) No one can update participants. // TODO: Add validation once roles are defined.
+     * @deny (delete) No one can delete participants. // TODO: Add validation once roles are defined.
      */
     match /participants/{participantId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add validation once roles are defined.
+      allow update: if false; // TODO: Add validation once roles are defined.
+      allow delete: if false; // TODO: Add validation once roles are defined.
     }
 
     /**
-     * @description Rules for user videos.
+     * @description Rule for video information for a user's channel.
      * @path /users/{userId}/videos/{videoId}
-     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own video at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/videos/{videoId}.
-     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create a video at /users/otherUserId/videos/{videoId}.
-     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can get their video at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/videos/{videoId}.
-     * @deny (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot get other user video at /users/otherUserId/videos/{videoId}.
-     * @allow (list) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can list their videos at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/videos.
-     * @deny (list) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot list other user videos at /users/otherUserId/videos.
-     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their video at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/videos/{videoId}.
-     * @deny (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot update video at /users/otherUserId/videos/{videoId}.
-     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their video at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/videos/{videoId}.
-     * @deny (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot delete other user video at /users/otherUserId/videos/{videoId}.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, and validates relational integrity between documents.
+     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own video.
+     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can read their own video.
+     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their own video.
+     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their own video.
+     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create another user's video (userId !== auth.uid).
+     * @deny (get) User with UID 'randomId' cannot read video of user with ID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/videos/{videoId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.channelId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.channelId == userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for store items.
+     * @description Rule for store item information.
      * @path /store_items/{storeItemId}
-     * @allow (get) All users can read store item data.
-     * @allow (list) All users can list store item data.
-     * @allow (create) Signed-in users can create store items.
-     * @deny (create) Unsigned-in users cannot create store items.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read store item information.
+     * @allow (list) Anyone can list store items.
+     * @deny (create) No one can create store items. // TODO: Add admin validation once roles are defined.
+     * @deny (update) No one can update store items. // TODO: Add admin validation once roles are defined.
+     * @deny (delete) No one can delete store items. // TODO: Add admin validation once roles are defined.
      */
     match /store_items/{storeItemId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add admin validation once roles are defined.
+      allow update: if false; // TODO: Add admin validation once roles are defined.
+      allow delete: if false; // TODO: Add admin validation once roles are defined.
     }
 
     /**
-     * @description Rules for user delivery addresses.
+     * @description Rule for delivery addresses for a user.
      * @path /users/{userId}/delivery_addresses/{deliveryAddressId}
-     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own delivery address at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/delivery_addresses/{deliveryAddressId} if the `userId` matches.
-     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create a delivery address at /users/otherUserId/delivery_addresses/{deliveryAddressId}.
-     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can get their delivery address at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/delivery_addresses/{deliveryAddressId}.
-     * @deny (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot get other user delivery address at /users/otherUserId/delivery_addresses/{deliveryAddressId}.
-     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their delivery address at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/delivery_addresses/{deliveryAddressId} if the `userId` is immutable.
-     * @deny (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot update delivery address at /users/otherUserId/delivery_addresses/{deliveryAddressId}.
-     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their delivery address at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/delivery_addresses/{deliveryAddressId}.
-     * @deny (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot delete other user delivery address at /users/otherUserId/delivery_addresses/{deliveryAddressId}.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, and validates relational integrity between documents.
+     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own delivery address.
+     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can read their own delivery address.
+     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their own delivery address.
+     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their own delivery address.
+     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create another user's delivery address (userId !== auth.uid).
+     * @deny (get) User with UID 'randomId' cannot read delivery address of user with ID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/delivery_addresses/{deliveryAddressId} {
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for orders.
+     * @description Rule for order information.
      * @path /orders/{orderId}
-     * @allow (get) All users can read order data.
-     * @allow (list) All users can list order data.
-     * @allow (create) Signed-in users can create orders.
-     * @deny (create) Unsigned-in users cannot create orders.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read order information.
+     * @allow (list) Anyone can list orders.
+     * @deny (create) No one can create orders. // TODO: Add validation once roles are defined.
+     * @deny (update) No one can update orders. // TODO: Add validation once roles are defined.
+     * @deny (delete) No one can delete orders. // TODO: Add validation once roles are defined.
      */
     match /orders/{orderId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add validation once roles are defined.
+      allow update: if false; // TODO: Add validation once roles are defined.
+      allow delete: if false; // TODO: Add validation once roles are defined.
     }
 
     /**
-     * @description Rules for chat messages.
+     * @description Rule for chat messages between users.
      * @path /chat_messages/{chatMessageId}
-     * @allow (get) All users can read chat messages.
-     * @allow (list) All users can list chat messages.
-     * @allow (create) Signed-in users can create chat messages.
-     * @deny (create) Unsigned-in users cannot create chat messages.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read chat messages.
+     * @allow (list) Anyone can list chat messages.
+     * @deny (create) No one can create chat messages. // TODO: Add validation once roles are defined.
+     * @deny (update) No one can update chat messages. // TODO: Add validation once roles are defined.
+     * @deny (delete) No one can delete chat messages. // TODO: Add validation once roles are defined.
      */
     match /chat_messages/{chatMessageId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add validation once roles are defined.
+      allow update: if false; // TODO: Add validation once roles are defined.
+      allow delete: if false; // TODO: Add validation once roles are defined.
     }
 
     /**
-     * @description Rules for friendships.
+     * @description Rule for friendship relationships between users.
      * @path /friendships/{friendshipId}
-     * @allow (get) All users can read friendship data.
-     * @allow (list) All users can list friendship data.
-     * @allow (create) Signed-in users can create friendships.
-     * @deny (create) Unsigned-in users cannot create friendships.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read friendship relationships.
+     * @allow (list) Anyone can list friendship relationships.
+     * @deny (create) No one can create friendship relationships. // TODO: Add validation once roles are defined.
+     * @deny (update) No one can update friendship relationships. // TODO: Add validation once roles are defined.
+     * @deny (delete) No one can delete friendship relationships. // TODO: Add validation once roles are defined.
      */
     match /friendships/{friendshipId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add validation once roles are defined.
+      allow update: if false; // TODO: Add validation once roles are defined.
+      allow delete: if false; // TODO: Add validation once roles are defined.
     }
 
     /**
-     * @description Rules for leaderboards.
+     * @description Rule for leaderboard information.
      * @path /leaderboards/{leaderboardId}
-     * @allow (get) All users can read leaderboard data.
-     * @allow (list) All users can list leaderboard data.
-     * @allow (create) Signed-in users can create leaderboards.
-     * @deny (create) Unsigned-in users cannot create leaderboards.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read leaderboard information.
+     * @allow (list) Anyone can list leaderboards.
+     * @deny (create) No one can create leaderboards. // TODO: Add admin validation once roles are defined.
+     * @deny (update) No one can update leaderboards. // TODO: Add admin validation once roles are defined.
+     * @deny (delete) No one can delete leaderboards. // TODO: Add admin validation once roles are defined.
      */
     match /leaderboards/{leaderboardId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add admin validation once roles are defined.
+      allow update: if false; // TODO: Add admin validation once roles are defined.
+      allow delete: if false; // TODO: Add admin validation once roles are defined.
     }
 
     /**
-     * @description Rules for leaderboard entries.
+     * @description Rule for leaderboard entries for a specific leaderboard.
      * @path /leaderboards/{leaderboardId}/entries/{leaderboardEntryId}
-     * @allow (get) All users can read leaderboard entries.
-     * @allow (list) All users can list leaderboard entries.
-     * @allow (create) Signed-in users can create leaderboard entries.
-     * @deny (create) Unsigned-in users cannot create leaderboard entries.
-     * @principle Public read access with authentication required for writes.
+     * @allow (get) Anyone can read leaderboard entries.
+     * @allow (list) Anyone can list leaderboard entries.
+     * @deny (create) No one can create leaderboard entries. // TODO: Add validation once roles are defined.
+     * @deny (update) No one can update leaderboard entries. // TODO: Add validation once roles are defined.
+     * @deny (delete) No one can delete leaderboard entries. // TODO: Add validation once roles are defined.
      */
     match /leaderboards/{leaderboardId}/entries/{leaderboardEntryId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false; // TODO: Add validation once roles are defined.
+      allow update: if false; // TODO: Add validation once roles are defined.
+      allow delete: if false; // TODO: Add validation once roles are defined.
     }
 
     /**
-     * @description Rules for user notifications.
+     * @description Rule for notifications for a user.
      * @path /users/{userId}/notifications/{notificationId}
-     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own notification at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/notifications/{notificationId}.
-     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create a notification at /users/otherUserId/notifications/{notificationId}.
-     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can get their notification at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/notifications/{notificationId}.
-     * @deny (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot get other user notification at /users/otherUserId/notifications/{notificationId}.
-     * @allow (list) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can list their notifications at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/notifications.
-     * @deny (list) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot list other user notifications at /users/otherUserId/notifications.
-     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their notification at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/notifications/{notificationId}.
-     * @deny (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot update notification at /users/otherUserId/notifications/{notificationId}.
-     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their notification at /users/c8i7mNbtLyZHOoMvIzAsVOOWMj43/notifications/{notificationId}.
-     * @deny (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot delete other user notification at /users/otherUserId/notifications/{notificationId}.
-     * @principle Enforces document ownership for writes, restricts access to a user's own data tree, and validates relational integrity between documents.
+     * @allow (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can create their own notification.
+     * @allow (get) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can read their own notification.
+     * @allow (update) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can update their own notification.
+     * @allow (delete) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' can delete their own notification.
+     * @deny (create) User with UID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43' cannot create another user's notification (userId !== auth.uid).
+     * @deny (get) User with UID 'randomId' cannot read notification of user with ID 'c8i7mNbtLyZHOoMvIzAsVOOWMj43'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/notifications/{notificationId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
-    /**
-     * @description Rules for videos.
-     * @path /videos
-     * @allow (get) All users can read video data.
-     * @allow (list) All users can list video data.
-     * @principle Public read access.
-     */
-    match /videos/{videoId} {
-        allow get: if true;
-        allow list: if true; // Correcting the permissions issue: allowing listing videos
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == userId;
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
