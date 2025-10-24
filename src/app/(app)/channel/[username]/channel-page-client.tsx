@@ -52,8 +52,24 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
-import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, doc, query, where, getDocs, updateDoc, setDoc } from 'firebase/firestore';
+import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser, errorEmitter, FirestorePermissionError, useFirebaseApp } from '@/firebase';
+import { collection, doc, query, where, getDocs, updateDoc, setDoc, onSnapshot, orderBy } from 'firebase/firestore';
+import { uploadFile } from '@/firebase/storage';
+
+interface Video {
+    id: string;
+    title: string;
+    views: number;
+    posted: string;
+    postedDate: Date;
+    thumbnailUrl: string;
+    dataAiHint?: string;
+    channelId: string;
+    isLive?: boolean;
+    isShort?: boolean;
+    likeCount: number;
+}
+
 
 export default function ChannelPageComponent({
   username: channelUsername,
@@ -64,13 +80,17 @@ export default function ChannelPageComponent({
   const defaultTab = searchParams ? searchParams.get('tab') || 'home' : 'home';
   const { toast } = useToast();
   
-  const { videos, shorts, posts, getSubscriberCount, addPost, addPlaylist, playlists } = useContent();
+  const { getSubscriberCount, addPost, addPlaylist, playlists } = useContent();
   const { user: currentUser, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const firebaseApp = useFirebaseApp();
   const router = useRouter();
 
   const { profile, updateAvatar, updateBanner, targetUser, setTargetUser } = useProfile();
   const [isFetchingTargetUser, setIsFetchingTargetUser] = useState(true);
+  const [channelVideos, setChannelVideos] = useState<Video[]>([]);
+  const [isLoadingVideos, setIsLoadingVideos] = useState(true);
+
 
   // All hooks must be called at the top level, unconditionally.
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -91,37 +111,78 @@ export default function ChannelPageComponent({
             displayName: profile.name,
         });
         setIsFetchingTargetUser(false);
-        return;
-    }
-    
-    // Otherwise, fetch the target user's profile
-    const fetchUser = async () => {
-        setIsFetchingTargetUser(true);
-        try {
-            const usersRef = collection(firestore, 'users');
-            const q = query(usersRef, where('username', '==', channelUsername));
-            const querySnapshot = await getDocs(q);
+    } else {
+        // Otherwise, fetch the target user's profile
+        const fetchUser = async () => {
+            setIsFetchingTargetUser(true);
+            try {
+                const usersRef = collection(firestore, 'users');
+                const q = query(usersRef, where('username', '==', channelUsername));
+                const querySnapshot = await getDocs(q);
 
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0];
-                setTargetUser({ id: userDoc.id, ...userDoc.data() });
-            } else {
+                if (!querySnapshot.empty) {
+                    const userDoc = querySnapshot.docs[0];
+                    setTargetUser({ id: userDoc.id, ...userDoc.data() });
+                } else {
+                    setTargetUser(null);
+                }
+            } catch (error) {
+                const permissionError = new FirestorePermissionError({
+                  path: `users`,
+                  operation: 'list',
+                });
+                errorEmitter.emit('permission-error', permissionError);
                 setTargetUser(null);
+            } finally {
+                setIsFetchingTargetUser(false);
             }
-        } catch (error) {
-            const permissionError = new FirestorePermissionError({
-              path: `users`,
-              operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            setTargetUser(null);
-        } finally {
-            setIsFetchingTargetUser(false);
-        }
+        };
+
+        fetchUser();
+    }
+  }, [firestore, channelUsername, currentUser, profile, setTargetUser]);
+
+  useEffect(() => {
+    if (!firestore || !targetUser?.id) {
+        setIsLoadingVideos(false);
+        return;
     };
 
-    fetchUser();
-  }, [firestore, channelUsername, currentUser, profile.handle, setTargetUser]);
+    setIsLoadingVideos(true);
+    const videosRef = collection(firestore, 'videos');
+    const q = query(
+        videosRef, 
+        where('channelId', '==', targetUser.id),
+        orderBy('uploadDate', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const videosData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const postedDate = data.uploadDate?.toDate();
+            return {
+                id: doc.id,
+                title: data.title,
+                views: data.views,
+                posted: postedDate ? new Date(postedDate).toLocaleDateString() : 'N/A',
+                postedDate: postedDate,
+                thumbnailUrl: data.thumbnailUrl,
+                dataAiHint: data.dataAiHint,
+                channelId: data.channelId,
+                isLive: data.isLive,
+                isShort: data.isShort,
+                likeCount: data.likes,
+            } as Video;
+        });
+        setChannelVideos(videosData);
+        setIsLoadingVideos(false);
+    }, (error) => {
+        console.error("Error fetching channel videos:", error);
+        setIsLoadingVideos(false);
+    });
+
+    return () => unsubscribe();
+  }, [firestore, targetUser?.id]);
 
 
   const channelInfo = useMemo(() => {
@@ -175,48 +236,47 @@ export default function ChannelPageComponent({
     return <div className="text-center p-10">Channel not found.</div>;
   }
   
-  const channelVideos = videos.filter(video => video.channelId === channelInfo.id);
-  const channelShorts = shorts.filter(short => short.channelId === channelInfo.id);
-  const channelPosts = posts.filter(post => post.channelId === channelInfo.id);
-  const channelLiveStreams = videos.filter(video => video.channelId === channelInfo.id && video.isLive);
+  const channelShorts = channelVideos.filter(v => v.isShort);
+  const homeVideos = channelVideos.filter(v => !v.isShort && !v.isLive);
+  const channelLiveStreams = channelVideos.filter(v => v.isLive);
 
-  const myAllVideos = [...channelVideos, ...channelShorts, ...channelLiveStreams].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
+ const myAllVideos = [...channelVideos].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
- const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, imageType: 'avatar' | 'banner') => {
+    if (!user || !firebaseApp) {
+        toast({ title: 'You must be logged in to upload images.', variant: 'destructive'});
+        return;
+    }
     const file = e.target.files?.[0];
     if (file && firestore && currentUser && isMyChannel) {
-      if (file.size > 1048487) {
-        toast({ title: 'Image too large', description: 'Please select an image smaller than 1MB.', variant: 'destructive'});
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({ title: 'Image too large', description: 'Please select an image smaller than 2MB.', variant: 'destructive'});
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newAvatarUrl = reader.result as string;
-        updateAvatar(newAvatarUrl); // Optimistic UI update
+
+      const toastId = toast({ title: `Uploading ${imageType}...`}).id;
+
+      try {
+        const filePath = `${imageType}s/${currentUser.uid}-${file.name}`;
+        const downloadURL = await uploadFile(firebaseApp, file, filePath);
         
-        toast({ title: 'Profile picture updated locally!', description: 'Note: Image saving to the database is temporarily disabled.' });
-      };
-      reader.readAsDataURL(file);
+        const userRef = doc(firestore, 'users', currentUser.uid);
+        const fieldToUpdate = imageType === 'avatar' ? 'avatarUrl' : 'bannerUrl';
+        await updateDoc(userRef, { [fieldToUpdate]: downloadURL });
+        
+        if (imageType === 'avatar') {
+            updateAvatar(downloadURL);
+        } else {
+            updateBanner(downloadURL);
+        }
+
+        toast({ id: toastId, title: `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} updated successfully!`});
+      } catch (error) {
+        toast({ id: toastId, title: `Failed to upload ${imageType}`, description: (error as Error).message, variant: "destructive" });
+      }
     }
   };
   
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && firestore && currentUser && isMyChannel) {
-       if (file.size > 1048487) {
-        toast({ title: 'Image too large', description: 'Please select an image smaller than 1MB.', variant: 'destructive'});
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newBannerUrl = reader.result as string;
-        updateBanner(newBannerUrl); // Optimistic UI update
-          
-        toast({ title: 'Channel banner updated locally!', description: 'Note: Image saving to the database is temporarily disabled.' });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   return (
     <div className="container mx-auto px-0 md:px-4 max-w-7xl">
@@ -233,7 +293,7 @@ export default function ChannelPageComponent({
                     <input 
                     type="file"
                     ref={bannerInputRef}
-                    onChange={handleBannerChange}
+                    onChange={(e) => handleImageChange(e, 'banner')}
                     className="hidden"
                     accept="image/*"
                     />
@@ -258,7 +318,7 @@ export default function ChannelPageComponent({
                         <input 
                         type="file"
                         ref={avatarInputRef}
-                        onChange={handleAvatarChange}
+                        onChange={(e) => handleImageChange(e, 'avatar')}
                         className="hidden"
                         accept="image/*"
                         />
@@ -332,12 +392,14 @@ export default function ChannelPageComponent({
         
         <TabsContent value="home">
           <div className="space-y-8">
-            {channelVideos.length > 0 && (
+            {isLoadingVideos ? <p>Loading content...</p> : (
+            <>
+            {homeVideos.length > 0 && (
               <section>
                 <h2 className="text-2xl font-bold mb-4">Videos</h2>
                 <Carousel opts={{ align: "start" }} className="w-full">
                   <CarouselContent>
-                    {channelVideos.map((video) => (
+                    {homeVideos.map((video) => (
                       <CarouselItem key={video.id} className="md:basis-1/2 lg:basis-1/3">
                         <VideoCard video={video} />
                       </CarouselItem>
@@ -383,12 +445,14 @@ export default function ChannelPageComponent({
               </section>
             )}
 
-            {channelVideos.length === 0 && channelShorts.length === 0 && channelLiveStreams.length === 0 && (
+            {channelVideos.length === 0 && (
               <Card>
                 <CardContent className="p-6 text-center text-muted-foreground">
                   This channel hasn't uploaded any content yet.
                 </CardContent>
               </Card>
+            )}
+            </>
             )}
           </div>
         </TabsContent>
@@ -397,7 +461,7 @@ export default function ChannelPageComponent({
           <Card>
               <CardHeader><CardTitle>All Uploads</CardTitle></CardHeader>
               <CardContent>
-                  {myAllVideos.length > 0 ? (
+                  {isLoadingVideos ? <p>Loading videos...</p> : myAllVideos.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                           {myAllVideos.map((video, index) => (
                               <div key={`${video.id}-${index}`}>
@@ -430,7 +494,7 @@ export default function ChannelPageComponent({
                 )}
               </CardHeader>
               <CardContent>
-                  {channelShorts.length > 0 ? (
+                  {isLoadingVideos ? <p>Loading shorts...</p> : channelShorts.length > 0 ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                          {channelShorts.map(short => (
                             <div key={short.id}>
@@ -465,7 +529,7 @@ export default function ChannelPageComponent({
               <CardContent className="space-y-6">
                 <div>
                   <h3 className="text-xl font-semibold mb-4">Past Live Streams</h3>
-                  {channelLiveStreams.length > 0 ? (
+                  {isLoadingVideos ? <p>Loading streams...</p> : channelLiveStreams.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                           {channelLiveStreams.map(video => (
                               <VideoCard key={video.id} video={video} />
@@ -506,33 +570,7 @@ export default function ChannelPageComponent({
 
         <TabsContent value="posts">
             <div className="space-y-4">
-                {channelPosts.length > 0 ? (
-                    channelPosts.map(post => (
-                        <Card key={post.id}>
-                            <CardHeader>
-                                <div className="flex items-center gap-3">
-                                    <Avatar>
-                                        <AvatarImage src={channelInfo.avatarUrl} />
-                                        <AvatarFallback>{String(channelInfo.name).substring(0,2)}</AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <p className="font-semibold">{channelInfo.name}</p>
-                                        <p className="text-xs text-muted-foreground">{post.posted}</p>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <p>{post.content}</p>
-                            </CardContent>
-                        </Card>
-                    ))
-                ) : (
-                      <Card>
-                        <CardContent className="p-6 text-center text-muted-foreground">
-                            This channel hasn't made any posts yet.
-                        </CardContent>
-                    </Card>
-                )}
+                {/* Posts from context */}
             </div>
         </TabsContent>
 
@@ -647,5 +685,3 @@ export default function ChannelPageComponent({
     </div>
   );
 }
-
-    

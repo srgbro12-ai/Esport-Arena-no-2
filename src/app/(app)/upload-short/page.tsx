@@ -3,26 +3,33 @@
 import { useState, useRef, ChangeEvent, DragEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Film, Upload } from "lucide-react";
-import { useContent } from '@/context/content-context';
+import { Film, Upload, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useProfile } from '@/context/ProfileContext';
-import { useUser } from '@/firebase';
+import { useUser, useFirebaseApp, useFirestore } from '@/firebase';
+import { uploadFile } from '@/firebase/storage';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 export default function UploadShortPage() {
   const [shortFile, setShortFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addShort } = useContent();
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
   const { profile } = useProfile();
+  const firebaseApp = useFirebaseApp();
+  const firestore = useFirestore();
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setShortFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file.size > 20 * 1024 * 1024) { // 20MB limit for shorts
+        toast({ title: "Short file too large", description: "Please upload a video smaller than 20MB.", variant: "destructive" });
+        return;
+      }
+      setShortFile(file);
     }
   };
 
@@ -33,31 +40,50 @@ export default function UploadShortPage() {
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setShortFile(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      if (file.size > 20 * 1024 * 1024) { // 20MB limit
+        toast({ title: "Short file too large", description: "Please upload a video smaller than 20MB.", variant: "destructive" });
+        return;
+      }
+      setShortFile(file);
     }
   };
 
-  const handleUpload = () => {
-    if (!shortFile) {
-        toast({ title: "Please select a file", variant: "destructive" });
+  const handleUpload = async () => {
+    if (!shortFile || !user || !firebaseApp || !firestore) {
+        toast({ title: "Please select a file and ensure you are logged in.", variant: "destructive" });
         return;
     }
 
-    if (!user) {
-        toast({ title: "You must be logged in to upload a short", variant: "destructive" });
-        return;
-    }
-    
-    addShort({
-        title: shortFile.name.replace(/\.[^/.]+$/, ""),
-        channelId: user.uid,
-        thumbnailUrl: URL.createObjectURL(shortFile),
-        dataAiHint: 'short video',
-    });
+    setIsUploading(true);
 
-    toast({ title: "Short uploaded successfully!" });
-    const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
-    router.push(`/channel/${channelUsername}?tab=shorts`);
+    try {
+        const fileName = `${user.uid}-${Date.now()}-${shortFile.name}`;
+        const videoUrl = await uploadFile(firebaseApp, shortFile, `shorts/${fileName}`);
+
+        const shortsCollection = collection(firestore, 'videos'); // Assuming shorts are also stored in 'videos' collection with a flag
+        await addDoc(shortsCollection, {
+            title: shortFile.name.replace(/\.[^/.]+$/, ""),
+            channelId: user.uid,
+            videoUrl: videoUrl,
+            thumbnailUrl: videoUrl, // For shorts, video can be its own thumbnail
+            isShort: true,
+            views: 0,
+            likes: 0,
+            uploadDate: serverTimestamp(),
+            dataAiHint: 'short video',
+        });
+        
+        toast({ title: "Short uploaded successfully!" });
+        const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+        router.push(`/channel/${channelUsername}?tab=shorts`);
+
+    } catch (error) {
+        console.error("Error uploading short:", error);
+        toast({ title: "Upload Failed", description: (error as Error).message, variant: "destructive" });
+    } finally {
+        setIsUploading(false);
+    }
   };
 
   if (shortFile) {
@@ -74,8 +100,11 @@ export default function UploadShortPage() {
                     </div>
                     <p className="text-sm text-muted-foreground">{shortFile.name}</p>
                     <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setShortFile(null)}>Cancel</Button>
-                        <Button onClick={handleUpload}>Upload</Button>
+                        <Button variant="outline" onClick={() => setShortFile(null)} disabled={isUploading}>Cancel</Button>
+                        <Button onClick={handleUpload} disabled={isUploading}>
+                           {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                           {isUploading ? 'Uploading...' : 'Upload'}
+                        </Button>
                     </div>
                 </CardContent>
             </Card>

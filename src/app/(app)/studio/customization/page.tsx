@@ -9,18 +9,20 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Copy, Plus, Trash2, Pencil } from 'lucide-react';
+import { Copy, Plus, Trash2, Pencil, Loader2 } from 'lucide-react';
 import { useProfile } from '@/context/ProfileContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useFirebaseApp } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { uploadFile } from '@/firebase/storage';
 
 export default function CustomizationPage() {
     const { toast } = useToast();
     const { profile, updateAvatar, updateBanner, updateProfile } = useProfile();
     const { user } = useUser();
     const firestore = useFirestore();
+    const firebaseApp = useFirebaseApp();
     
     const [name, setName] = useState(profile.name);
     const [handle, setHandle] = useState(profile.handle.replace('@', ''));
@@ -29,6 +31,7 @@ export default function CustomizationPage() {
     const [links, setLinks] = useState(profile.links);
     const [dob, setDob] = useState(profile.dob);
     const [gender, setGender] = useState(profile.gender);
+    const [isPublishing, setIsPublishing] = useState(false);
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -63,35 +66,53 @@ export default function CustomizationPage() {
         setLinks(newLinks);
     };
 
-    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+        imageType: 'avatar' | 'banner'
+    ) => {
+        if (!user || !firebaseApp) {
+            toast({ title: 'You must be logged in to upload images.', variant: 'destructive'});
+            return;
+        }
+
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                updateAvatar(reader.result as string);
-                toast({ title: "Profile picture updated!" });
-            };
-            reader.readAsDataURL(file);
+            if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                toast({ title: 'Image too large', description: 'Please select an image smaller than 2MB.', variant: 'destructive'});
+                return;
+            }
+            
+            const toastId = toast({ title: `Uploading ${imageType}...`}).id;
+            
+            try {
+                const filePath = `${imageType}s/${user.uid}-${file.name}`;
+                const downloadURL = await uploadFile(firebaseApp, file, filePath);
+
+                const userRef = doc(firestore, 'users', user.uid);
+                const fieldToUpdate = imageType === 'avatar' ? 'avatarUrl' : 'bannerUrl';
+                await updateDoc(userRef, { [fieldToUpdate]: downloadURL });
+                
+                if (imageType === 'avatar') {
+                    updateAvatar(downloadURL);
+                } else {
+                    updateBanner(downloadURL);
+                }
+
+                toast({ id: toastId, title: `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} updated!` });
+            } catch (error) {
+                toast({ id: toastId, title: `Failed to upload ${imageType}`, description: (error as Error).message, variant: 'destructive' });
+            }
         }
     };
 
-    const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                updateBanner(reader.result as string);
-                toast({ title: "Channel banner updated!" });
-            };
-            reader.readAsDataURL(file);
-        }
-    };
 
     const handlePublish = async () => {
         if (!user || !firestore) {
             toast({ title: "You must be logged in to make changes.", variant: "destructive" });
             return;
         }
+
+        setIsPublishing(true);
 
         const profileDataToSave = {
             displayName: name,
@@ -128,6 +149,8 @@ export default function CustomizationPage() {
                 description: (error as Error).message,
                 variant: "destructive"
             });
+        } finally {
+            setIsPublishing(false);
         }
     };
 
@@ -139,10 +162,13 @@ export default function CustomizationPage() {
                 <h1 className="text-2xl font-bold">Channel customization</h1>
                 <div className="flex items-center gap-2">
                     <Link href={`/channel/${channelHandle}`}>
-                        <Button variant="ghost">View channel</Button>
+                        <Button variant="ghost" disabled={isPublishing}>View channel</Button>
                     </Link>
-                    <Button variant="outline">Cancel</Button>
-                    <Button onClick={handlePublish}>Publish</Button>
+                    <Button variant="outline" disabled={isPublishing}>Cancel</Button>
+                    <Button onClick={handlePublish} disabled={isPublishing}>
+                        {isPublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isPublishing ? 'Publishing...' : 'Publish'}
+                    </Button>
                 </div>
             </div>
 
@@ -173,10 +199,10 @@ export default function CustomizationPage() {
                             </Link>
                             <div className="flex-1">
                                 <p className="text-sm text-muted-foreground mb-3">
-                                    Your profile picture will appear where your channel is presented on MyTube, like next to your videos and comments. It’s recommended to use a picture that’s at least 128 x 128 pixels and 4MB or less. Use a PNG or GIF (no animations) file.
+                                    Your profile picture will appear where your channel is presented on MyTube, like next to your videos and comments. It’s recommended to use a picture that’s at least 128 x 128 pixels and 2MB or less. Use a PNG or GIF (no animations) file.
                                 </p>
                                 <div className="flex items-center gap-2">
-                                    <input type="file" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" accept="image/*" />
+                                    <input type="file" ref={avatarInputRef} onChange={(e) => handleImageChange(e, 'avatar')} className="hidden" accept="image/*" />
                                     <Button variant="outline" onClick={() => avatarInputRef.current?.click()}>Change</Button>
                                     <Button variant="ghost" onClick={() => updateAvatar('https://placehold.co/128x128.png')}>Remove</Button>
                                 </div>
@@ -191,10 +217,10 @@ export default function CustomizationPage() {
                         <CardContent className="flex flex-col-reverse md:flex-row items-center gap-6">
                              <div className="flex-1">
                                 <p className="text-sm text-muted-foreground mb-3">
-                                    This image will appear across the top of your channel. For the best results on all devices, use an image that’s at least 1080 x 240 pixels and 6MB or less.
+                                    This image will appear across the top of your channel. For the best results on all devices, use an image that’s at least 1080 x 240 pixels and 2MB or less.
                                 </p>
                                 <div className="flex items-center gap-2">
-                                     <input type="file" ref={bannerInputRef} onChange={handleBannerChange} className="hidden" accept="image/*" />
+                                     <input type="file" ref={bannerInputRef} onChange={(e) => handleImageChange(e, 'banner')} className="hidden" accept="image/*" />
                                     <Button variant="outline" onClick={() => bannerInputRef.current?.click()}>Change</Button>
                                     <Button variant="ghost" onClick={() => updateBanner('https://placehold.co/1080x240.png')}>Remove</Button>
                                 </div>

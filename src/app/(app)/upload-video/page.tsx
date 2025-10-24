@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Upload, Calendar as CalendarIcon, Film, Plus } from 'lucide-react';
+import { Upload, Calendar as CalendarIcon, Film, Plus, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -25,7 +25,10 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { CreatePlaylistDialog } from '@/components/channel/CreatePlaylistDialog';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
-import { useUser } from '@/firebase';
+import { useUser, useFirebaseApp } from '@/firebase';
+import { uploadFile } from '@/firebase/storage';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 const uploadVideoSchema = z.object({
   title: z.string().min(1, { message: "Title is required." }),
@@ -49,13 +52,16 @@ type Playlist = {
 export default function UploadPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const router = useRouter();
   
   const { user } = useUser();
+  const firebaseApp = useFirebaseApp();
+  const firestore = useFirestore();
   const { profile } = useProfile();
-  const { addVideo, playlists, addPlaylist } = useContent();
+  const { playlists, addPlaylist } = useContent();
 
   const form = useForm<z.infer<typeof uploadVideoSchema>>({
     resolver: zodResolver(uploadVideoSchema),
@@ -75,14 +81,25 @@ export default function UploadPage() {
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setVideoFile(e.target.files[0]);
+      const file = e.target.files[0];
+       if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        toast({ title: "Video file too large", description: "Please upload a video smaller than 50MB.", variant: "destructive" });
+        return;
+      }
+      setVideoFile(file);
+      form.setValue('title', file.name.replace(/\.[^/.]+$/, ""));
     }
   };
 
   const handleThumbnailChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-        setThumbnailFile(e.target.files[0]);
-        form.setValue('thumbnail', e.target.files[0]);
+        const file = e.target.files[0];
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+          toast({ title: "Thumbnail file too large", description: "Please upload an image smaller than 2MB.", variant: "destructive" });
+          return;
+        }
+        setThumbnailFile(file);
+        form.setValue('thumbnail', file);
     }
   };
 
@@ -93,43 +110,67 @@ export default function UploadPage() {
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setVideoFile(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+       if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        toast({ title: "Video file too large", description: "Please upload a video smaller than 50MB.", variant: "destructive" });
+        return;
+      }
+      setVideoFile(file);
+      form.setValue('title', file.name.replace(/\.[^/.]+$/, ""));
     }
   };
 
-  function onSubmit(data: z.infer<typeof uploadVideoSchema>) {
-    if (!videoFile) {
+  async function onSubmit(data: z.infer<typeof uploadVideoSchema>) {
+    if (!videoFile || !user || !firestore || !firebaseApp) {
         toast({
             title: "Upload Error",
-            description: "Please select a video file to upload.",
+            description: "Please select a video file and ensure you are logged in.",
             variant: "destructive",
         });
         return;
     }
     
-    if (!user) {
+    setIsUploading(true);
+
+    try {
+        const videoFileName = `${user.uid}-${Date.now()}-${videoFile.name}`;
+        const videoUrl = await uploadFile(firebaseApp, videoFile, `videos/${videoFileName}`);
+        
+        let thumbnailUrl = 'https://placehold.co/600x400.png';
+        if (thumbnailFile) {
+            const thumbnailFileName = `${user.uid}-${Date.now()}-${thumbnailFile.name}`;
+            thumbnailUrl = await uploadFile(firebaseApp, thumbnailFile, `thumbnails/${thumbnailFileName}`);
+        }
+
+        const videosCollection = collection(firestore, 'videos');
+        await addDoc(videosCollection, {
+            ...data,
+            channelId: user.uid,
+            videoUrl,
+            thumbnailUrl,
+            views: 0,
+            likes: 0,
+            uploadDate: serverTimestamp(),
+            dataAiHint: data.description?.split(' ').slice(0, 2).join(' ') || 'uploaded video',
+        });
+
         toast({
-            title: "Authentication Error",
-            description: "You must be logged in to upload a video.",
+            title: "Video Uploaded Successfully!",
+            description: "Your video has been saved to your channel.",
+        });
+        
+        const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+        router.push(`/channel/${channelUsername}?tab=videos`);
+    } catch (error) {
+        console.error("Error uploading video:", error);
+        toast({
+            title: "Upload Failed",
+            description: (error as Error).message,
             variant: "destructive",
         });
-        return;
+    } finally {
+        setIsUploading(false);
     }
-
-    addVideo({
-      title: data.title,
-      channelId: user.uid,
-      thumbnailUrl: thumbnailFile ? URL.createObjectURL(thumbnailFile) : 'https://placehold.co/600x400.png',
-      dataAiHint: data.description?.split(' ').slice(0, 2).join(' ') || 'uploaded video',
-    });
-
-    toast({
-        title: "Video Uploaded Successfully!",
-        description: "Your video details have been saved.",
-    });
-    
-    const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
-    router.push(`/channel/${channelUsername}?tab=videos`);
   }
 
   const videoSrc = videoFile ? URL.createObjectURL(videoFile) : '';
@@ -154,7 +195,7 @@ export default function UploadPage() {
              className="hidden"
             onChange={handleFileChange}
           />
-          <Button className="mt-6">Select Files</Button>
+          <Button className="mt-6" disabled={isUploading}>Select Files</Button>
         </div>
       </div>
     );
@@ -165,7 +206,10 @@ export default function UploadPage() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-headline font-bold">Upload Video</h1>
-          <Button type="submit">Upload Video</Button>
+          <Button type="submit" disabled={isUploading}>
+            {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isUploading ? 'Uploading...' : 'Upload Video'}
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

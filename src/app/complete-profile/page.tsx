@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { useProfile } from '@/context/ProfileContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useFirebaseApp } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { uploadFile } from '@/firebase/storage';
+import { Loader2 } from 'lucide-react';
 
 export default function CompleteProfilePage() {
     const { profile, updateAvatar, updateProfile, setProfile } = useProfile();
@@ -15,20 +17,20 @@ export default function CompleteProfilePage() {
     const { toast } = useToast();
     const { user } = useUser();
     const firestore = useFirestore();
+    const firebaseApp = useFirebaseApp();
 
     const [displayName, setDisplayName] = useState('');
     const [handle, setHandle] = useState('');
     const [dob, setDob] = useState('');
     const [gender, setGender] = useState('');
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     const profilePicInputRef = useRef<HTMLInputElement>(null);
 
      useEffect(() => {
         if (user) {
-            // Do not set profile from user object anymore to avoid pre-filling
-            // Only use user object to get default avatar if available
             setProfile(prev => ({ ...prev, avatarUrl: user.photoURL || 'https://placehold.co/128x128.png' }));
-            // Pre-fill handle suggestion based on email
             setHandle(user.email?.split('@')[0] || '');
         }
     }, [user, setProfile]);
@@ -37,10 +39,11 @@ export default function CompleteProfilePage() {
     const handleProfilePicChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            if (file.size > 1048487) {
-                toast({ title: 'Image too large', description: 'Please select an image smaller than 1MB.', variant: 'destructive'});
+            if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                toast({ title: 'Image too large', description: 'Please select an image smaller than 2MB.', variant: 'destructive'});
                 return;
             }
+            setAvatarFile(file);
             const reader = new FileReader();
             reader.onload = (e) => {
                 if (e.target?.result) {
@@ -52,7 +55,7 @@ export default function CompleteProfilePage() {
     };
     
     const handleSave = async () => {
-        if (!user || !firestore) {
+        if (!user || !firestore || !firebaseApp) {
             toast({ title: 'You must be logged in.', variant: 'destructive' });
             return;
         }
@@ -61,33 +64,39 @@ export default function CompleteProfilePage() {
             return;
         }
 
-        const profileData = {
-            id: user.uid,
-            email: user.email,
-            displayName: displayName, 
-            username: handle,
-            // Temporarily disable saving avatar to Firestore to avoid size limit error
-            // avatarUrl: profile.avatarUrl,
-            bannerUrl: 'https://placehold.co/1080x240.png',
-            description: `Welcome to the channel of ${displayName}!`,
-            isVerified: false,
-            subscriberCount: 0,
-            videoCount: 0,
-            links: [],
-            dob: dob, 
-            gender: gender,
-            joinDate: new Date().toISOString(),
-        };
+        setIsSaving(true);
+        let avatarUrl = profile.avatarUrl;
 
         try {
+            if (avatarFile) {
+                const filePath = `avatars/${user.uid}-${avatarFile.name}`;
+                avatarUrl = await uploadFile(firebaseApp, avatarFile, filePath);
+            }
+            
+            const profileData = {
+                id: user.uid,
+                email: user.email,
+                displayName: displayName, 
+                username: handle,
+                avatarUrl: avatarUrl,
+                bannerUrl: 'https://placehold.co/1080x240.png',
+                description: `Welcome to the channel of ${displayName}!`,
+                isVerified: false,
+                subscriberCount: 0,
+                videoCount: 0,
+                links: [],
+                dob: dob, 
+                gender: gender,
+                joinDate: new Date().toISOString(),
+            };
+
             const userRef = doc(firestore, 'users', user.uid);
             await setDoc(userRef, profileData, { merge: true });
 
-            // Update local profile context
             updateProfile({
                 name: displayName,
                 handle: `@${handle}`,
-                avatarUrl: profile.avatarUrl, // Keep optimistic UI update
+                avatarUrl: avatarUrl,
                 dob,
                 gender,
                 description: profileData.description,
@@ -97,12 +106,14 @@ export default function CompleteProfilePage() {
 
             toast({
                 title: "Channel created!",
-                description: "Welcome to Esport Arena! Note: Profile picture not saved.",
+                description: "Welcome to Esport Arena!",
             });
             router.push(`/channel/${handle}`);
         } catch (error) {
             console.error("Error creating channel: ", error);
             toast({ title: 'Failed to create channel', description: (error as Error).message, variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -197,11 +208,12 @@ export default function CompleteProfilePage() {
                             </div>
                         </div>
                     </div>
-                     <Button className="w-full bg-cyan-500 hover:bg-cyan-600" onClick={handleSave}>Create Channel & Continue</Button>
+                     <Button className="w-full bg-cyan-500 hover:bg-cyan-600" onClick={handleSave} disabled={isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isSaving ? 'Creating Channel...' : 'Create Channel & Continue'}
+                    </Button>
                 </div>
             </div>
         </div>
     );
 }
-
-    
