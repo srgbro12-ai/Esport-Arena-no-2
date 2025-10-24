@@ -177,7 +177,11 @@ export default function ChannelPageComponent({
         setChannelVideos(videosData);
         setIsLoadingVideos(false);
     }, (error) => {
-        console.error("Error fetching channel videos:", error);
+        const permissionError = new FirestorePermissionError({
+            path: `videos`,
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
         setIsLoadingVideos(false);
     });
 
@@ -243,12 +247,12 @@ export default function ChannelPageComponent({
  const myAllVideos = [...channelVideos].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime());
 
  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, imageType: 'avatar' | 'banner') => {
-    if (!user || !firebaseApp) {
+    if (!currentUser || !firebaseApp || !firestore) {
         toast({ title: 'You must be logged in to upload images.', variant: 'destructive'});
         return;
     }
     const file = e.target.files?.[0];
-    if (file && firestore && currentUser && isMyChannel) {
+    if (file && isMyChannel) {
       if (file.size > 2 * 1024 * 1024) { // 2MB limit
         toast({ title: 'Image too large', description: 'Please select an image smaller than 2MB.', variant: 'destructive'});
         return;
@@ -262,15 +266,27 @@ export default function ChannelPageComponent({
         
         const userRef = doc(firestore, 'users', currentUser.uid);
         const fieldToUpdate = imageType === 'avatar' ? 'avatarUrl' : 'bannerUrl';
-        await updateDoc(userRef, { [fieldToUpdate]: downloadURL });
-        
-        if (imageType === 'avatar') {
-            updateAvatar(downloadURL);
-        } else {
-            updateBanner(downloadURL);
-        }
+        const dataToUpdate = { [fieldToUpdate]: downloadURL };
 
-        toast({ id: toastId, title: `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} updated successfully!`});
+        updateDoc(userRef, dataToUpdate)
+            .then(() => {
+                if (imageType === 'avatar') {
+                    updateAvatar(downloadURL);
+                } else {
+                    updateBanner(downloadURL);
+                }
+                toast({ id: toastId, title: `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} updated successfully!`});
+            })
+            .catch(async (error) => {
+                toast({ id: toastId, title: `Failed to update ${imageType}`, variant: "destructive" });
+                const permissionError = new FirestorePermissionError({
+                    path: userRef.path,
+                    operation: 'update',
+                    requestResourceData: dataToUpdate,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
+
       } catch (error) {
         toast({ id: toastId, title: `Failed to upload ${imageType}`, description: (error as Error).message, variant: "destructive" });
       }
@@ -685,3 +701,5 @@ export default function ChannelPageComponent({
     </div>
   );
 }
+
+    

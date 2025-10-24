@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, ChangeEvent, DragEvent } from 'react';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Film, Upload, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useProfile } from '@/context/ProfileContext';
-import { useUser, useFirebaseApp, useFirestore } from '@/firebase';
+import { useUser, useFirebaseApp, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { uploadFile } from '@/firebase/storage';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
@@ -61,8 +62,8 @@ export default function UploadShortPage() {
         const fileName = `${user.uid}-${Date.now()}-${shortFile.name}`;
         const videoUrl = await uploadFile(firebaseApp, shortFile, `shorts/${fileName}`);
 
-        const shortsCollection = collection(firestore, 'videos'); // Assuming shorts are also stored in 'videos' collection with a flag
-        await addDoc(shortsCollection, {
+        const shortsCollection = collection(firestore, 'videos');
+        const videoData = {
             title: shortFile.name.replace(/\.[^/.]+$/, ""),
             channelId: user.uid,
             videoUrl: videoUrl,
@@ -72,16 +73,29 @@ export default function UploadShortPage() {
             likes: 0,
             uploadDate: serverTimestamp(),
             dataAiHint: 'short video',
-        });
-        
-        toast({ title: "Short uploaded successfully!" });
-        const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
-        router.push(`/channel/${channelUsername}?tab=shorts`);
+        };
+
+        addDoc(shortsCollection, videoData)
+          .then(() => {
+            toast({ title: "Short uploaded successfully!" });
+            const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+            router.push(`/channel/${channelUsername}?tab=shorts`);
+          })
+          .catch(async (error) => {
+              const permissionError = new FirestorePermissionError({
+                  path: shortsCollection.path,
+                  operation: 'create',
+                  requestResourceData: videoData,
+              });
+              errorEmitter.emit('permission-error', permissionError);
+          })
+          .finally(() => {
+            setIsUploading(false);
+          });
 
     } catch (error) {
         console.error("Error uploading short:", error);
         toast({ title: "Upload Failed", description: (error as Error).message, variant: "destructive" });
-    } finally {
         setIsUploading(false);
     }
   };
@@ -142,3 +156,5 @@ export default function UploadShortPage() {
     </div>
   );
 }
+
+    

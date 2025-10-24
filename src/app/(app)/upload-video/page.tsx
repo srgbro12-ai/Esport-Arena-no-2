@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, ChangeEvent, DragEvent } from 'react';
@@ -25,7 +26,7 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { CreatePlaylistDialog } from '@/components/channel/CreatePlaylistDialog';
 import { useContent } from '@/context/content-context';
 import { useProfile } from '@/context/ProfileContext';
-import { useUser, useFirebaseApp } from '@/firebase';
+import { useUser, useFirebaseApp, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { uploadFile } from '@/firebase/storage';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -143,7 +144,7 @@ export default function UploadPage() {
         }
 
         const videosCollection = collection(firestore, 'videos');
-        await addDoc(videosCollection, {
+        const videoData = {
             ...data,
             channelId: user.uid,
             videoUrl,
@@ -152,15 +153,29 @@ export default function UploadPage() {
             likes: 0,
             uploadDate: serverTimestamp(),
             dataAiHint: data.description?.split(' ').slice(0, 2).join(' ') || 'uploaded video',
-        });
-
-        toast({
-            title: "Video Uploaded Successfully!",
-            description: "Your video has been saved to your channel.",
-        });
+        };
         
-        const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
-        router.push(`/channel/${channelUsername}?tab=videos`);
+        addDoc(videosCollection, videoData)
+          .then(() => {
+            toast({
+                title: "Video Uploaded Successfully!",
+                description: "Your video has been saved to your channel.",
+            });
+            const channelUsername = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
+            router.push(`/channel/${channelUsername}?tab=videos`);
+          })
+          .catch(async (error) => {
+              const permissionError = new FirestorePermissionError({
+                  path: videosCollection.path,
+                  operation: 'create',
+                  requestResourceData: videoData,
+              });
+              errorEmitter.emit('permission-error', permissionError);
+          })
+          .finally(() => {
+            setIsUploading(false);
+          });
+
     } catch (error) {
         console.error("Error uploading video:", error);
         toast({
@@ -168,7 +183,6 @@ export default function UploadPage() {
             description: (error as Error).message,
             variant: "destructive",
         });
-    } finally {
         setIsUploading(false);
     }
   }
@@ -532,3 +546,5 @@ export default function UploadPage() {
     </Form>
   );
 }
+
+    

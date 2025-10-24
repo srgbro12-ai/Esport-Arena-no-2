@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -13,7 +14,7 @@ import { Copy, Plus, Trash2, Pencil, Loader2 } from 'lucide-react';
 import { useProfile } from '@/context/ProfileContext';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { useUser, useFirestore, useFirebaseApp } from '@/firebase';
+import { useUser, useFirestore, useFirebaseApp, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { uploadFile } from '@/firebase/storage';
 
@@ -70,7 +71,7 @@ export default function CustomizationPage() {
         e: React.ChangeEvent<HTMLInputElement>,
         imageType: 'avatar' | 'banner'
     ) => {
-        if (!user || !firebaseApp) {
+        if (!user || !firebaseApp || !firestore) {
             toast({ title: 'You must be logged in to upload images.', variant: 'destructive'});
             return;
         }
@@ -90,15 +91,26 @@ export default function CustomizationPage() {
 
                 const userRef = doc(firestore, 'users', user.uid);
                 const fieldToUpdate = imageType === 'avatar' ? 'avatarUrl' : 'bannerUrl';
-                await updateDoc(userRef, { [fieldToUpdate]: downloadURL });
-                
-                if (imageType === 'avatar') {
-                    updateAvatar(downloadURL);
-                } else {
-                    updateBanner(downloadURL);
-                }
+                const dataToUpdate = { [fieldToUpdate]: downloadURL };
 
-                toast({ id: toastId, title: `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} updated!` });
+                updateDoc(userRef, dataToUpdate)
+                  .then(() => {
+                    if (imageType === 'avatar') {
+                        updateAvatar(downloadURL);
+                    } else {
+                        updateBanner(downloadURL);
+                    }
+                    toast({ id: toastId, title: `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} updated!` });
+                  })
+                  .catch(async (error) => {
+                      const permissionError = new FirestorePermissionError({
+                          path: userRef.path,
+                          operation: 'update',
+                          requestResourceData: dataToUpdate,
+                      });
+                      errorEmitter.emit('permission-error', permissionError);
+                  });
+
             } catch (error) {
                 toast({ id: toastId, title: `Failed to upload ${imageType}`, description: (error as Error).message, variant: 'destructive' });
             }
@@ -124,34 +136,33 @@ export default function CustomizationPage() {
             gender,
         };
 
-        try {
-            const userRef = doc(firestore, 'users', user.uid);
-            await updateDoc(userRef, profileDataToSave);
-            
-            // Update local context after successful save
-            updateProfile({
-                name,
-                handle: `@${profileDataToSave.username}`,
-                description,
-                email: contactEmail,
-                links,
-                dob,
-                gender,
-            });
+        const userRef = doc(firestore, 'users', user.uid);
 
-            toast({
-                title: "Channel updated successfully!",
+        updateDoc(userRef, profileDataToSave)
+            .then(() => {
+                // Update local context after successful save
+                updateProfile({
+                    name,
+                    handle: `@${profileDataToSave.username}`,
+                    description,
+                    email: contactEmail,
+                    links,
+                    dob,
+                    gender,
+                });
+                toast({ title: "Channel updated successfully!" });
+            })
+            .catch(async (error) => {
+                const permissionError = new FirestorePermissionError({
+                    path: userRef.path,
+                    operation: 'update',
+                    requestResourceData: profileDataToSave,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            })
+            .finally(() => {
+                setIsPublishing(false);
             });
-        } catch (error) {
-            console.error("Error updating profile:", error);
-            toast({
-                title: "Failed to update channel",
-                description: (error as Error).message,
-                variant: "destructive"
-            });
-        } finally {
-            setIsPublishing(false);
-        }
     };
 
     const channelHandle = profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle;
@@ -372,3 +383,5 @@ export default function CustomizationPage() {
         </div>
     );
 }
+
+    

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useProfile } from '@/context/ProfileContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useFirebaseApp } from '@/firebase';
+import { useUser, useFirestore, useFirebaseApp, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { uploadFile } from '@/firebase/storage';
 import { Loader2 } from 'lucide-react';
@@ -91,28 +91,41 @@ export default function CompleteProfilePage() {
             };
 
             const userRef = doc(firestore, 'users', user.uid);
-            await setDoc(userRef, profileData, { merge: true });
+            
+            setDoc(userRef, profileData, { merge: true })
+                .then(() => {
+                    updateProfile({
+                        name: displayName,
+                        handle: `@${handle}`,
+                        avatarUrl: avatarUrl,
+                        dob,
+                        gender,
+                        description: profileData.description,
+                        email: user.email || '',
+                        links: []
+                    });
 
-            updateProfile({
-                name: displayName,
-                handle: `@${handle}`,
-                avatarUrl: avatarUrl,
-                dob,
-                gender,
-                description: profileData.description,
-                email: user.email || '',
-                links: []
-            });
+                    toast({
+                        title: "Channel created!",
+                        description: "Welcome to Esport Arena!",
+                    });
+                    router.push(`/channel/${handle}`);
+                })
+                .catch(async (error) => {
+                    const permissionError = new FirestorePermissionError({
+                        path: userRef.path,
+                        operation: 'create',
+                        requestResourceData: profileData,
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                })
+                .finally(() => {
+                     setIsSaving(false);
+                });
 
-            toast({
-                title: "Channel created!",
-                description: "Welcome to Esport Arena!",
-            });
-            router.push(`/channel/${handle}`);
         } catch (error) {
             console.error("Error creating channel: ", error);
             toast({ title: 'Failed to create channel', description: (error as Error).message, variant: 'destructive' });
-        } finally {
             setIsSaving(false);
         }
     };
@@ -217,3 +230,5 @@ export default function CompleteProfilePage() {
         </div>
     );
 }
+
+    
