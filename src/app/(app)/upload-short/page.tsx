@@ -11,6 +11,7 @@ import { useProfile } from '@/context/ProfileContext';
 import { useUser, useFirebaseApp, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { uploadFile } from '@/firebase/storage';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { Input } from '@/components/ui/input';
 
 export default function UploadShortPage() {
   const [shortFile, setShortFile] = useState<File | null>(null);
@@ -62,7 +63,7 @@ export default function UploadShortPage() {
         const fileName = `${user.uid}-${Date.now()}-${shortFile.name}`;
         const videoUrl = await uploadFile(firebaseApp, shortFile, `shorts/${fileName}`);
 
-        const shortsCollection = collection(firestore, 'videos');
+        const shortsCollection = collection(firestore, 'users', user.uid, 'videos');
         const videoData = {
             title: shortFile.name.replace(/\.[^/.]+$/, ""),
             channelId: user.uid,
@@ -156,5 +157,3 @@ export default function UploadShortPage() {
     </div>
   );
 }
-
-    

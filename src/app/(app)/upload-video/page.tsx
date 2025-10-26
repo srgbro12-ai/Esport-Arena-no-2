@@ -143,7 +143,7 @@ export default function UploadPage() {
             thumbnailUrl = await uploadFile(firebaseApp, thumbnailFile, `thumbnails/${thumbnailFileName}`);
         }
 
-        const videosCollection = collection(firestore, 'videos');
+        const videosCollection = collection(firestore, 'users', user.uid, 'videos');
         const videoData = {
             ...data,
             channelId: user.uid,
@@ -290,7 +290,7 @@ export default function UploadPage() {
                   {hint: "person smiling", src: "https://placehold.co/144x80.png"}
                   ].map((thumb, i) => (
                   <div key={i} className="relative w-36 h-20 rounded-lg overflow-hidden border border-border cursor-pointer hover:ring-2 hover:ring-primary">
-                    <img src={thumb.src} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" data-ai-hint={thumb.hint} />
+                    <img src={thumb.src} alt={`Thumbnail ${'${i + 1}'}`} className="w-full h-full object-cover" data-ai-hint={thumb.hint} />
                      {i === 0 && thumbnailFile && <div className="absolute inset-0 ring-2 ring-primary bg-primary/20" />}
                   </div>
                 ))}
@@ -546,5 +546,3 @@ export default function UploadPage() {
     </Form>
   );
 }
-
-    
