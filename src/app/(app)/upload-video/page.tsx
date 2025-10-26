@@ -149,6 +149,7 @@ export default function UploadPage() {
             channelId: user.uid,
             videoUrl,
             thumbnailUrl,
+            isShort: false,
             views: 0,
             likes: 0,
             uploadDate: serverTimestamp(),
@@ -546,3 +547,5 @@ export default function UploadPage() {
     </Form>
   );
 }
+
+    
