@@ -149,10 +149,9 @@ export default function ChannelPageComponent({
     };
 
     setIsLoadingVideos(true);
-    const videosRef = collection(firestore, 'videos');
+    const videosRef = collection(firestore, 'users', targetUser.id, 'videos');
     const q = query(
-        videosRef, 
-        where('channelId', '==', targetUser.id),
+        videosRef,
         orderBy('uploadDate', 'desc')
     );
 
@@ -178,7 +177,7 @@ export default function ChannelPageComponent({
         setIsLoadingVideos(false);
     }, (error) => {
         const permissionError = new FirestorePermissionError({
-            path: `videos`,
+            path: `users/${targetUser.id}/videos`,
             operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
@@ -702,4 +701,3 @@ export default function ChannelPageComponent({
   );
 }
 
-    
